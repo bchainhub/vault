@@ -556,6 +556,26 @@ func initCommands(ui, serverCmdUi cli.Ui, runOpts *RunOptions) {
 				BaseCommand: getBaseCommand(),
 			}, nil
 		},
+		"tls": func() (cli.Command, error) {
+			return &TLSCommand{
+				BaseCommand: getBaseCommand(),
+			}, nil
+		},
+		"tls ca": func() (cli.Command, error) {
+			return &TLSCaCommand{
+				BaseCommand: getBaseCommand(),
+			}, nil
+		},
+		"tls ca create": func() (cli.Command, error) {
+			return &TLSCaCreateCommand{
+				BaseCommand: getBaseCommand(),
+			}, nil
+		},
+		"tls cert": func() (cli.Command, error) {
+			return &TLSCertCommand{
+				BaseCommand: getBaseCommand(),
+			}, nil
+		},
 		"token": func() (cli.Command, error) {
 			return &TokenCommand{
 				BaseCommand: getBaseCommand(),
