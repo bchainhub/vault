@@ -105,7 +105,6 @@ func (c *TLSCaCreateCommand) Flags() *FlagSets {
 
 func (c *TLSCaCreateCommand) Run(args []string) int {
 	f := c.Flags()
-
 	if err := f.Parse(args); err != nil {
 		c.UI.Error(err.Error())
 		return 1
