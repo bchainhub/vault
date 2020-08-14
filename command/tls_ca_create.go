@@ -18,6 +18,8 @@ import (
 )
 
 var _ cli.Command = (*TLSCaCreateCommand)(nil)
+var _ cli.CommandAutocomplete = (*TLSCaCreateCommand)(nil)
+
 
 type TLSCaCreateCommand struct {
 	*BaseCommand
@@ -40,6 +42,34 @@ Usage: vault tls ca create [options]
   Create a new vault CA:
 
   $ vault tls ca create
+
+Command Options:
+
+  -additional-name-constraint=<string>
+      Add name constraints for the CA. Results in rejecting certificates
+      for other DNS than specified. Can be used multiple times. Only used in
+      combination with -name-constraint.
+
+  -bits=<int>
+      Number of bits to use when generating the CA's private key. Defaults to
+      2048.
+
+  -common-name=<string>
+      Common name is the fully qualified domain name of the certificate. Defaults 
+      to Vault CA.
+
+  -days=<int>
+      Provide number of days the CA is valid for from now on. Defaults to 1825 
+      (5 years).
+
+  -domain=<string>
+      Domain of vault cluster. Only used in combination with -name-constraint.
+      Defaults to vault.
+
+  -name-constraint
+      Add name constraints for the CA. Results in rejecting certificates for
+      other DNS than specified. If turned on, localhost and -domain will be
+      added to the allowed DNS. Defaults to false.
 `)
 }
 
@@ -101,6 +131,14 @@ func (c *TLSCaCreateCommand) Flags() *FlagSets {
 	})
 
 	return set
+}
+
+func (c *TLSCaCreateCommand) AutocompleteArgs() complete.Predictor {
+	return complete.PredictNothing
+}
+
+func (c *TLSCaCreateCommand) AutocompleteFlags() complete.Flags {
+	return c.Flags().Completions()
 }
 
 func (c *TLSCaCreateCommand) Run(args []string) int {

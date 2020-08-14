@@ -21,6 +21,8 @@ import (
 )
 
 var _ cli.Command = (*TLSCertCreateCommand)(nil)
+var _ cli.CommandAutocomplete = (*TLSCertCreateCommand)(nil)
+
 
 type TLSCertCreateCommand struct {
 	*BaseCommand
@@ -51,6 +53,43 @@ Usage: vault tls cert create [options]
   Create a new client certificate:
 
   $ vault tls cert create -client
+
+Command Options:
+
+  -additional-dnsname=<string>
+      Provide an additional dnsname for Subject Alternative Names. localhost
+      is always included. This flag may be provided multiple times.
+
+  -additional-ipaddress=<string>
+      Provide an additional ipaddress for Subject Alternative Names. 127.0.0.1
+      is always included. This flag may be provided multiple times.
+
+  -bits=<int>
+      Number of bits to use when generating the servers private key. Defaults
+      to 2048.
+
+  -ca=<string>
+      Provide path to the ca. Defaults to #DOMAIN#-ca.pem.
+
+  -client
+      Generate client certificate. The default is false.
+
+  -common-name=<string>
+      Common name is the fully qualified domain name of the certificate. Defaults 
+      to vault.
+
+  -days=<int>
+      Provide number of days the CA is valid for from now on. Defaults to 1825
+      (5 years).
+
+  -domain=<string>
+      Domain of vault cluster. Defaults to vault.
+
+  -key=<string>
+      Provide path to the key. Defaults to #DOMAIN#-ca-key.pem.
+
+  -server
+      Generate server certificate. The default is false.
 `)
 }
 
@@ -138,6 +177,14 @@ func (c *TLSCertCreateCommand) Flags() *FlagSets {
 	})
 
 	return set
+}
+
+func (c *TLSCertCreateCommand) AutocompleteArgs() complete.Predictor {
+	return complete.PredictNothing
+}
+
+func (c *TLSCertCreateCommand) AutocompleteFlags() complete.Flags {
+	return c.Flags().Completions()
 }
 
 func (c *TLSCertCreateCommand) Run(args []string) int {
@@ -265,6 +312,8 @@ func (c *TLSCertCreateCommand) Run(args []string) int {
 		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
 		BasicConstraintsValid: true,
 		SubjectKeyId:          id,
+		DNSNames:              DNSNames,
+		IPAddresses:           IPAddresses,
 	}
 
 	certBytes, err := x509.CreateCertificate(rand.Reader, template, parent, keys.Public(), signer)

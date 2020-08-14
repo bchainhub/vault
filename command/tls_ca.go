@@ -8,6 +8,7 @@ import (
 
 var _ cli.Command = (*TLSCaCommand)(nil)
 
+
 type TLSCaCommand struct {
 	*BaseCommand
 }
@@ -30,9 +31,6 @@ Usage: vault tls ca <subcommand> [options] filename-prefix
     $ vault tls ca create
 
   For more examples, ask for subcommand help or view the documentation.
-
-Subcommands:
-    create    Create a new vault CA
 `)
 }
 
