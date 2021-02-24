@@ -69,8 +69,11 @@ func (r *ResponseEncryptionKey) GetKey() []byte {
 }
 
 // GetPersistentKey ...
-func (r *ResponseEncryptionKey) GetPersistentKey() []byte {
-	return r.wrapper.GetKeyBytes()
+func (r *ResponseEncryptionKey) GetPersistentKey() ([]byte, error) {
+	if r.token == nil {
+		r.WrapForStorage()
+	}
+	return r.wrapper.GetKeyBytes(), nil
 }
 
 // Renewable ...
@@ -79,7 +82,7 @@ func (r *ResponseEncryptionKey) Renewable() bool {
 }
 
 // Renewer ...
-func (r *ResponseEncryptionKey) Renewer(ctx context.Context, ch chan struct{}) error {
+func (r *ResponseEncryptionKey) Renewer(ctx context.Context) error {
 	for {
 		secret, err := r.rewrap()
 		if err != nil {
@@ -88,7 +91,7 @@ func (r *ResponseEncryptionKey) Renewer(ctx context.Context, ch chan struct{}) e
 		r.token = []byte(secret.WrapInfo.Token)
 
 		// Notify listener token has changed
-		<-ch
+		<-r.Notify
 
 		sleep := float64(time.Duration(secret.WrapInfo.TTL)*time.Second) / 3.0
 		sleep = sleep * (mathRand.Float64() + 1) / 2.0

@@ -35,7 +35,7 @@ func TestCrypto_ResponseWrappingNewKey(t *testing.T) {
 		t.Fatalf(fmt.Sprintf("unexpected error: %s", err))
 	}
 
-	key := responseWrappedKey.Get()
+	key := responseWrappedKey.GetKey()
 	if key == nil {
 		t.Fatalf(fmt.Sprintf("key is nil, it shouldn't be: %s", key))
 	}
@@ -87,7 +87,7 @@ func TestCrypto_ResponseWrappingExistingKey(t *testing.T) {
 		t.Fatalf(fmt.Sprintf("unexpected error: %s", err))
 	}
 
-	key := responseWrappedKey.Get()
+	key := responseWrappedKey.GetKey()
 	if key == nil {
 		t.Fatalf(fmt.Sprintf("key is nil, it shouldn't be: %s", key))
 	}
