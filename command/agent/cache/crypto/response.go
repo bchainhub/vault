@@ -71,9 +71,11 @@ func (r *ResponseEncryptionKey) GetKey() []byte {
 // GetPersistentKey ...
 func (r *ResponseEncryptionKey) GetPersistentKey() ([]byte, error) {
 	if r.token == nil {
-		r.WrapForStorage()
+		if err := r.WrapForStorage(); err != nil {
+			return nil, err
+		}
 	}
-	return r.wrapper.GetKeyBytes(), nil
+	return r.token, nil
 }
 
 // Renewable ...
