@@ -84,6 +84,7 @@ func (r *ResponseEncrypter) GetPersistentKey() ([]byte, error) {
 		if r.Client.Token() == "" {
 			return nil, fmt.Errorf("response wrapping requires a token set on client")
 		}
+
 		if err := r.wrapForStorage(); err != nil {
 			return nil, err
 		}
@@ -116,6 +117,7 @@ func (r *ResponseEncrypter) Renewer(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		case <-r.Stop:
+			// Should we try to rewrap before stopping?
 			r.Done <- nil
 		}
 	}
