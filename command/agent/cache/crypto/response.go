@@ -3,6 +3,7 @@ package crypto
 import (
 	"context"
 	"crypto/rand"
+	"encoding/base64"
 	"fmt"
 	mathRand "math/rand"
 	"time"
@@ -12,48 +13,57 @@ import (
 	"github.com/hashicorp/vault/api"
 )
 
-var _ KeyManager = (*ResponseEncryptionKey)(nil)
+var _ KeyManager = (*ResponseEncrypter)(nil)
 
-// ResponseEncryptionKey ...
-type ResponseEncryptionKey struct {
+const ResponseWrappedTokenTTL = "60"
+
+// ResponseEncrypter ...
+type ResponseEncrypter struct {
 	renewable bool
 	wrapper   *aead.Wrapper
 	token     []byte
-	client    *api.Client
+	ttl       string
+	Client    *api.Client
 	Notify    chan struct{}
+	Stop      chan struct{}
+	Done      chan error
 }
 
-// NewResponseWrappedKey ..
-func NewResponseWrappedKey(existingToken []byte, client *api.Client) (*ResponseEncryptionKey, error) {
-	r := &ResponseEncryptionKey{
+// NewResponseEncrypter ..
+func NewResponseEncrypter(existingToken []byte, client *api.Client, ttl string) (*ResponseEncrypter, error) {
+	if ttl == "" {
+		ttl = ResponseWrappedTokenTTL
+	}
+
+	r := &ResponseEncrypter{
 		renewable: true,
 		wrapper:   aead.NewWrapper(nil),
-		client:    client,
+		Client:    client,
+		Notify:    make(chan struct{}, 1),
+		Stop:      make(chan struct{}, 1),
+		Done:      make(chan error, 1),
+		ttl:       ttl,
 	}
-
-	r.client.AddHeader("X-Vault-Wrap-TTL", "60")
 	r.wrapper.SetConfig(map[string]string{"key_id": KeyID})
 
-	var rootKey []byte = nil
-	if len(existingToken) != 0 {
-		r.token = existingToken
-		secret, err := r.unwrap()
-		if err != nil {
-			return r, err
-		}
-		fmt.Println(fmt.Sprintf("%+v", secret.Data))
-
-		key := secret.Data["key"].(string)
-		rootKey = []byte(key)
-	}
-
-	if rootKey == nil {
+	var rootKey []byte
+	switch tokenLength := len(existingToken); {
+	case tokenLength == 0:
 		newKey := make([]byte, 32)
 		_, err := rand.Read(newKey)
 		if err != nil {
 			return r, err
 		}
 		rootKey = newKey
+	case tokenLength > 0:
+		r.token = existingToken
+		key, err := r.unwrap()
+		if err != nil {
+			return r, err
+		}
+		rootKey = key
+	default:
+		return r, fmt.Errorf("unknown error")
 	}
 
 	if err := r.wrapper.SetAESGCMKeyBytes(rootKey); err != nil {
@@ -64,14 +74,17 @@ func NewResponseWrappedKey(existingToken []byte, client *api.Client) (*ResponseE
 }
 
 // GetKey ...
-func (r *ResponseEncryptionKey) GetKey() []byte {
+func (r *ResponseEncrypter) GetKey() []byte {
 	return r.wrapper.GetKeyBytes()
 }
 
 // GetPersistentKey ...
-func (r *ResponseEncryptionKey) GetPersistentKey() ([]byte, error) {
+func (r *ResponseEncrypter) GetPersistentKey() ([]byte, error) {
 	if r.token == nil {
-		if err := r.WrapForStorage(); err != nil {
+		if r.Client.Token() == "" {
+			return nil, fmt.Errorf("response wrapping requires a token set on client")
+		}
+		if err := r.wrapForStorage(); err != nil {
 			return nil, err
 		}
 	}
@@ -79,35 +92,37 @@ func (r *ResponseEncryptionKey) GetPersistentKey() ([]byte, error) {
 }
 
 // Renewable ...
-func (r *ResponseEncryptionKey) Renewable() bool {
+func (r *ResponseEncrypter) Renewable() bool {
 	return r.renewable
 }
 
 // Renewer ...
-func (r *ResponseEncryptionKey) Renewer(ctx context.Context) error {
+func (r *ResponseEncrypter) Renewer(ctx context.Context) error {
 	for {
-		secret, err := r.rewrap()
+		token, ttl, err := r.rewrap()
 		if err != nil {
+			r.Done <- err
 			return err
 		}
-		r.token = []byte(secret.WrapInfo.Token)
+		r.token = []byte(token)
+		r.Notify <- struct{}{}
 
-		// Notify listener token has changed
-		<-r.Notify
-
-		sleep := float64(time.Duration(secret.WrapInfo.TTL)*time.Second) / 3.0
-		sleep = sleep * (mathRand.Float64() + 1) / 2.0
+		sleep := float64(time.Duration(ttl) * time.Second)
+		sleep = sleep * (.60 + mathRand.Float64()*0.1)
+		sleepDuration := time.Duration(sleep)
 
 		select {
-		case <-time.After(time.Duration(sleep) * time.Second):
+		case <-time.After(sleepDuration):
 		case <-ctx.Done():
 			return nil
+		case <-r.Stop:
+			r.Done <- nil
 		}
 	}
 }
 
 // Encrypt ...
-func (r *ResponseEncryptionKey) Encrypt(ctx context.Context, plaintext, aad []byte) ([]byte, error) {
+func (r *ResponseEncrypter) Encrypt(ctx context.Context, plaintext, aad []byte) ([]byte, error) {
 	blob, err := r.wrapper.Encrypt(ctx, plaintext, aad)
 	if err != nil {
 		return nil, err
@@ -116,7 +131,7 @@ func (r *ResponseEncryptionKey) Encrypt(ctx context.Context, plaintext, aad []by
 }
 
 // Decrypt ...
-func (r *ResponseEncryptionKey) Decrypt(ctx context.Context, ciphertext, aad []byte) ([]byte, error) {
+func (r *ResponseEncrypter) Decrypt(ctx context.Context, ciphertext, aad []byte) ([]byte, error) {
 	blob := &wrapping.EncryptedBlobInfo{
 		Ciphertext: ciphertext,
 		KeyInfo: &wrapping.KeyInfo{
@@ -126,26 +141,54 @@ func (r *ResponseEncryptionKey) Decrypt(ctx context.Context, ciphertext, aad []b
 	return r.wrapper.Decrypt(ctx, blob, aad)
 }
 
-func (r *ResponseEncryptionKey) WrapForStorage() error {
-	secret, err := r.wrap()
+func (r *ResponseEncrypter) wrapForStorage() error {
+	ttl := ResponseWrappedTokenTTL
+	if r.ttl != "" {
+		ttl = r.ttl
+	}
+
+	r.Client.AddHeader("X-Vault-Wrap-TTL", ttl)
+	token, err := r.wrap()
 	if err != nil {
 		return err
 	}
-	r.token = []byte(secret.WrapInfo.Token)
+
+	r.token = []byte(token)
 	return nil
 }
 
-func (r *ResponseEncryptionKey) wrap() (*api.Secret, error) {
-	data := map[string]interface{}{"key": string(r.wrapper.GetKeyBytes())}
-	return r.client.Logical().Write("/sys/wrapping/wrap", data)
+func (r *ResponseEncrypter) wrap() (string, error) {
+	b64Key := base64.StdEncoding.EncodeToString(r.wrapper.GetKeyBytes())
+	data := map[string]interface{}{"key": b64Key}
+
+	secret, err := r.Client.Logical().Write("/sys/wrapping/wrap", data)
+	if err != nil {
+		return "", err
+	}
+	return secret.WrapInfo.Token, nil
 }
 
-func (r *ResponseEncryptionKey) unwrap() (*api.Secret, error) {
-	//data := map[string]interface{}{"token": string(r.token)}
-	return r.client.Logical().Write("/sys/wrapping/unwrap", nil)
+func (r *ResponseEncrypter) unwrap() ([]byte, error) {
+	// Clear any previous headers set else Vault might
+	// treat this as a wrap request (ie "X-Vault-Wrap-TTL")
+	r.Client.SetHeaders(nil)
+	secret, err := r.Client.Logical().Unwrap(string(r.token))
+	if err != nil {
+		return nil, err
+	}
+
+	key, ok := secret.Data["key"]
+	if !ok {
+		return nil, fmt.Errorf("key not found in unwrap response")
+	}
+	return base64.StdEncoding.DecodeString(key.(string))
 }
 
-func (r *ResponseEncryptionKey) rewrap() (*api.Secret, error) {
+func (r *ResponseEncrypter) rewrap() (string, int, error) {
 	data := map[string]interface{}{"token": string(r.token)}
-	return r.client.Logical().Write("/sys/wrapping/rewrap", data)
+	secret, err := r.Client.Logical().Write("/sys/wrapping/rewrap", data)
+	if err != nil {
+		return "", -1, err
+	}
+	return secret.WrapInfo.Token, secret.WrapInfo.TTL, nil
 }
