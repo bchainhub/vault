@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/url"
+	"os"
 	"path"
 	"strings"
 	"time"
@@ -69,7 +70,8 @@ func (d *VaultReadQuery) Fetch(clients *ClientSet, opts *QueryOptions,
 
 	firstRun := d.secret == nil
 
-	if !firstRun && vaultSecretRenewable(d.secret) {
+	renew := os.Getenv("VAULT_SKIP_RENEWAL") == ""
+	if !firstRun && vaultSecretRenewable(d.secret) && renew {
 		err := renewSecret(clients, d)
 		if err != nil {
 			return nil, nil, errors.Wrap(err, d.String())

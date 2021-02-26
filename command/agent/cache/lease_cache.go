@@ -12,6 +12,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -435,7 +436,13 @@ func (c *LeaseCache) Send(ctx context.Context, req *SendRequest) (*SendResponse,
 	}
 
 	// Start renewing the secret in the response
-	go c.startRenewing(renewCtx, index, req, secret)
+	renew := os.Getenv("VAULT_SKIP_RENEWAL")
+	if renew == "" {
+		c.logger.Info("Starting renewal!!!")
+		go c.startRenewing(renewCtx, index, req, secret)
+	} else {
+		c.logger.Info("Skipping renewal!!!")
+	}
 
 	return resp, nil
 }

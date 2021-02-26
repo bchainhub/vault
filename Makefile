@@ -53,7 +53,7 @@ dev-dynamic-mem: dev-dynamic
 # Creates a Docker image by adding the compiled linux/amd64 binary found in ./bin.
 # The resulting image is tagged "vault:dev".
 docker-dev: prep
-	docker build --build-arg VERSION=$(GO_VERSION_MIN) -f scripts/docker/Dockerfile -t vault:dev .
+	docker build --no-cache --build-arg VERSION=$(GO_VERSION_MIN) -f scripts/docker/Dockerfile -t vault:dev .
 
 docker-dev-ui: prep
 	docker build --build-arg VERSION=$(GO_VERSION_MIN) -f scripts/docker/Dockerfile.ui -t vault:dev-ui .
