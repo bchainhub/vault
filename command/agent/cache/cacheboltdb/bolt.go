@@ -1,10 +1,12 @@
 package cacheboltdb
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/golang/protobuf/proto"
@@ -26,13 +28,20 @@ const (
 	// bootstrapping keys
 	metaBucketName = "meta"
 
-	// SecretLeaseType - Bucket/type for leases with secret info
+	// CacheBucket hold encrypted tokens and leases
+	CacheBucket = "cache"
+
+	// LookupBucket holds the mapping between cachememdb ID's and
+	// CacheBucketID's (sequential integers)
+	LookupBucket = "lookup"
+
+	// SecretLeaseType - type for leases with secret info
 	SecretLeaseType = "secret-lease"
 
-	// AuthLeaseType - Bucket/type for leases with auth info
+	// AuthLeaseType - type for leases with auth info
 	AuthLeaseType = "auth-lease"
 
-	// TokenType - Bucket/type for auto-auth tokens
+	// TokenType - type for auto-auth tokens
 	TokenType = "token"
 
 	// AutoAuthToken - key for the latest auto-auth token
@@ -103,28 +112,28 @@ func createBoltSchema(tx *bolt.Tx) error {
 		return fmt.Errorf("storage migration from %s to %s not implemented", string(version), storageVersion)
 	}
 
-	// create the buckets for tokens and leases
-	_, err = tx.CreateBucketIfNotExists([]byte(TokenType))
+	// create the buckets for cached items and lookup
+	_, err = tx.CreateBucketIfNotExists([]byte(CacheBucket))
 	if err != nil {
-		return fmt.Errorf("failed to create token bucket: %w", err)
+		return fmt.Errorf("failed to create cache bucket: %w", err)
 	}
-	_, err = tx.CreateBucketIfNotExists([]byte(AuthLeaseType))
+	_, err = tx.CreateBucketIfNotExists([]byte(LookupBucket))
 	if err != nil {
-		return fmt.Errorf("failed to create auth lease bucket: %w", err)
-	}
-	_, err = tx.CreateBucketIfNotExists([]byte(SecretLeaseType))
-	if err != nil {
-		return fmt.Errorf("failed to create secret lease bucket: %w", err)
+		return fmt.Errorf("failed to create lookup bucket: %w", err)
 	}
 
 	return nil
+}
+
+func formatBucketID(id uint64) string {
+	return strconv.FormatUint(id, 10)
 }
 
 // Set an index (token or lease) in bolt storage
 func (b *BoltStorage) Set(ctx context.Context, id string, plaintext []byte, indexType string) error {
 	blob, err := b.wrapper.Encrypt(ctx, plaintext, []byte(b.aad))
 	if err != nil {
-		return fmt.Errorf("error encrypting %s index: %w", indexType, err)
+		return fmt.Errorf("error encrypting %s index %s: %w", indexType, id, err)
 	}
 
 	protoBlob, err := proto.Marshal(blob)
@@ -133,10 +142,29 @@ func (b *BoltStorage) Set(ctx context.Context, id string, plaintext []byte, inde
 	}
 
 	return b.db.Update(func(tx *bolt.Tx) error {
-		s := tx.Bucket([]byte(indexType))
-		if s == nil {
-			return fmt.Errorf("bucket %q not found", indexType)
+		lookup := tx.Bucket([]byte(LookupBucket))
+		if lookup == nil {
+			return fmt.Errorf("bucket %q not found", LookupBucket)
 		}
+		cacheBucket := tx.Bucket([]byte(CacheBucket))
+		if cacheBucket == nil {
+			return fmt.Errorf("bucket %q not found", CacheBucket)
+		}
+		// Check if item already exists
+		cacheBucketID := lookup.Get([]byte(id))
+		var cacheBucketIDstr string
+		if cacheBucketID == nil {
+			cacheBucketUint, err := cacheBucket.NextSequence()
+			if err != nil {
+				return fmt.Errorf("failed to generated next cache bucket id: %w", err)
+			}
+			cacheBucketIDstr = formatBucketID(cacheBucketUint)
+			cacheBucketID = []byte(cacheBucketIDstr)
+			if err := lookup.Put([]byte(id), cacheBucketID); err != nil {
+				return fmt.Errorf("failed to store %q in lookup: %w", id, err)
+			}
+		}
+
 		// If this is an auto-auth token, also stash it in the meta bucket for
 		// easy retrieval upon restore
 		if indexType == TokenType {
@@ -145,7 +173,7 @@ func (b *BoltStorage) Set(ctx context.Context, id string, plaintext []byte, inde
 				return fmt.Errorf("failed to set latest auto-auth token: %w", err)
 			}
 		}
-		return s.Put([]byte(id), protoBlob)
+		return cacheBucket.Put(cacheBucketID, protoBlob)
 	})
 }
 
@@ -161,16 +189,14 @@ func getBucketIDs(b *bolt.Bucket) ([][]byte, error) {
 // Delete an index (token or lease) by id from bolt storage
 func (b *BoltStorage) Delete(id string) error {
 	return b.db.Update(func(tx *bolt.Tx) error {
+
+		// lookkup id in lookup to see if it exists, and if it does, use the
+		// value as the cache bucket id
+
 		// Since Delete returns a nil error if the key doesn't exist, just call
-		// delete in all three index buckets without checking existence first
-		if err := tx.Bucket([]byte(TokenType)).Delete([]byte(id)); err != nil {
-			return fmt.Errorf("failed to delete %q from token bucket: %w", id, err)
-		}
-		if err := tx.Bucket([]byte(AuthLeaseType)).Delete([]byte(id)); err != nil {
-			return fmt.Errorf("failed to delete %q from auth lease bucket: %w", id, err)
-		}
-		if err := tx.Bucket([]byte(SecretLeaseType)).Delete([]byte(id)); err != nil {
-			return fmt.Errorf("failed to delete %q from secret lease bucket: %w", id, err)
+		// delete without checking existence first
+		if err := tx.Bucket([]byte(CacheBucket)).Delete([]byte(id)); err != nil {
+			return fmt.Errorf("failed to delete %q from cache bucket: %w", id, err)
 		}
 		b.logger.Trace("deleted index from bolt db", "id", id)
 		return nil
@@ -186,23 +212,29 @@ func (b *BoltStorage) decrypt(ctx context.Context, ciphertext []byte) ([]byte, e
 	return b.wrapper.Decrypt(ctx, &blob, []byte(b.aad))
 }
 
-// GetByType returns a list of stored items of the specified type
-func (b *BoltStorage) GetByType(ctx context.Context, indexType string) ([][]byte, error) {
+// GetByType returns a list of stored items of the specified type, ordered by
+func (b *BoltStorage) GetCachedItems(ctx context.Context) ([][]byte, error) {
 	var returnBytes [][]byte
 
 	err := b.db.View(func(tx *bolt.Tx) error {
 		var errors *multierror.Error
 
-		tx.Bucket([]byte(indexType)).ForEach(func(id, ciphertext []byte) error {
-			plaintext, err := b.decrypt(ctx, ciphertext)
+		cache := tx.Bucket([]byte(CacheBucket)).Cursor()
+
+		min := []byte("2021-03-01-01T00:00:00Z")
+		max := []byte(time.Now().UTC().Format(time.RFC3339))
+
+		for k, v := cache.Seek(min); k != nil && bytes.Compare(k, max) <= 0; k, v = cache.Next() {
+			// tx.Bucket([]byte(CacheBucket)).ForEach(func(id, ciphertext []byte) error {
+			plaintext, err := b.decrypt(ctx, v)
 			if err != nil {
-				errors = multierror.Append(errors, fmt.Errorf("error decrypting index id %s: %w", id, err))
+				errors = multierror.Append(errors, fmt.Errorf("error decrypting index id %s: %w", k, err))
 				return nil
 			}
 
 			returnBytes = append(returnBytes, plaintext)
 			return nil
-		})
+		}
 		return errors.ErrorOrNil()
 	})
 
@@ -274,15 +306,13 @@ func (b *BoltStorage) Close() error {
 	return b.db.Close()
 }
 
-// Clear the boltdb by deleting all the token and lease buckets and recreating
+// Clear the boltdb by deleting the cache bucket and recreating
 // the schema/layout
 func (b *BoltStorage) Clear() error {
 	return b.db.Update(func(tx *bolt.Tx) error {
-		for _, name := range []string{AuthLeaseType, SecretLeaseType, TokenType} {
-			b.logger.Trace("deleting bolt bucket", "name", name)
-			if err := tx.DeleteBucket([]byte(name)); err != nil {
-				return err
-			}
+		b.logger.Trace("deleting cache bucket in bolt")
+		if err := tx.DeleteBucket([]byte(CacheBucket)); err != nil {
+			return err
 		}
 		return createBoltSchema(tx)
 	})

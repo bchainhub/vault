@@ -63,6 +63,9 @@ type Index struct {
 	// RequestHeader is the header used in the request
 	RequestHeader http.Header
 
+	// CreatedAt is the timestamp when an index was created
+	CreatedAt time.Time
+
 	// LastRenewed is the timestamp of last renewal
 	LastRenewed time.Time
 

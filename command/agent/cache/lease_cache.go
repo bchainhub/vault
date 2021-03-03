@@ -292,12 +292,14 @@ func (c *LeaseCache) Send(ctx context.Context, req *SendRequest) (*SendResponse,
 		namespace = "root/"
 	}
 
+	createTime := currentTime()
 	// Build the index to cache based on the response received
 	index := &cachememdb.Index{
 		ID:          id,
 		Namespace:   namespace,
 		RequestPath: req.Request.URL.Path,
-		LastRenewed: time.Now().UTC(),
+		CreatedAt:   createTime,
+		LastRenewed: createTime,
 	}
 
 	secret, err := api.ParseSecret(bytes.NewReader(resp.ResponseBody))
@@ -503,7 +505,7 @@ func (c *LeaseCache) startRenewing(ctx context.Context, index *cachememdb.Index,
 		case <-watcher.RenewCh():
 			c.logger.Debug("secret renewed", "path", req.Request.URL.Path)
 			if c.ps != nil {
-				if err := c.updateLastRenewed(ctx, index, time.Now().UTC()); err != nil {
+				if err := c.updateLastRenewed(ctx, index, currentTime()); err != nil {
 					c.logger.Warn("not able to update lastRenewed time for cached index", "id", index.ID)
 				}
 			}
@@ -1017,7 +1019,7 @@ func (c *LeaseCache) restoreLeases(leases [][]byte) error {
 		}
 
 		// Check if this lease has already expired
-		expired, err := c.hasExpired(time.Now().UTC(), newIndex)
+		expired, err := c.hasExpired(currentTime(), newIndex)
 		if err != nil {
 			c.logger.Warn("failed to check if lease is expired", "id", newIndex.ID, "error", err)
 		}
@@ -1292,4 +1294,8 @@ func (c *LeaseCache) hasExpired(currentTime time.Time, index *cachememdb.Index) 
 		return true, nil
 	}
 	return false, nil
+}
+
+func currentTime() time.Time {
+	return time.Now().UTC()
 }
