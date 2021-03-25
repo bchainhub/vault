@@ -28,6 +28,7 @@ require (
 	github.com/asaskevich/govalidator v0.0.0-20180720115003-f9ffefc3facf
 	github.com/aws/aws-sdk-go v1.37.19
 	github.com/bitly/go-hostpool v0.1.0 // indirect
+	github.com/briankassouf/jose v0.9.2-0.20180619214549-d2569464773f
 	github.com/cenkalti/backoff/v3 v3.0.0
 	github.com/chrismalek/oktasdk-go v0.0.0-20181212195951-3430665dfaa0
 	github.com/client9/misspell v0.3.4
@@ -168,5 +169,7 @@ require (
 	gopkg.in/mgo.v2 v2.0.0-20180705113604-9856a29383ce
 	gopkg.in/ory-am/dockertest.v3 v3.3.4
 	gopkg.in/square/go-jose.v2 v2.5.1
+	k8s.io/api v0.18.2
+	k8s.io/apimachinery v0.18.2
 	layeh.com/radius v0.0.0-20190322222518-890bc1058917
 )
