@@ -43,7 +43,7 @@ func (b *rfidAuthBackend) pathConfigRead(ctx context.Context, req *logical.Reque
 		// Create a map of data to be returned
 		resp := &logical.Response{
 			Data: map[string]interface{}{
-				"test": config.Test,
+				"test": config.test,
 			},
 		}
 

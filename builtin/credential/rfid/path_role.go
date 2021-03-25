@@ -8,13 +8,12 @@ import (
 
 	"github.com/hashicorp/go-sockaddr"
 	"github.com/hashicorp/vault/sdk/framework"
-	"github.com/hashicorp/vault/sdk/helper/strutil"
 	"github.com/hashicorp/vault/sdk/helper/tokenutil"
 	"github.com/hashicorp/vault/sdk/logical"
 )
 
 // pathsRole returns the path configurations for the CRUD operations on roles
-func pathsRole(b *kubeAuthBackend) []*framework.Path {
+func pathsRole(b *rfidAuthBackend) []*framework.Path {
 	p := []*framework.Path{
 		{
 			Pattern: "role/?",
@@ -35,26 +34,7 @@ func pathsRole(b *kubeAuthBackend) []*framework.Path {
 					Type:        framework.TypeString,
 					Description: "Name of the role.",
 				},
-				"bound_service_account_names": {
-					Type: framework.TypeCommaStringSlice,
-					Description: `List of service account names able to access this role. If set to "*" all names
-are allowed.`,
-				},
-				"bound_service_account_namespaces": {
-					Type: framework.TypeCommaStringSlice,
-					Description: `List of namespaces allowed to access this role. If set to "*" all namespaces
-are allowed.`,
-				},
-				"audience": {
-					Type:        framework.TypeString,
-					Description: "Optional Audience claim to verify in the jwt.",
-				},
-				"policies": {
-					Type:        framework.TypeCommaStringSlice,
-					Description: tokenutil.DeprecationText("token_policies"),
-					Deprecated:  true,
-				},
-				"num_uses": {
+				"uid": {
 					Type:        framework.TypeInt,
 					Description: tokenutil.DeprecationText("token_num_uses"),
 					Deprecated:  true,
@@ -101,7 +81,7 @@ are allowed.`,
 }
 
 // pathRoleExistenceCheck returns whether the role with the given name exists or not.
-func (b *kubeAuthBackend) pathRoleExistenceCheck(ctx context.Context, req *logical.Request, data *framework.FieldData) (bool, error) {
+func (b *rfidAuthBackend) pathRoleExistenceCheck(ctx context.Context, req *logical.Request, data *framework.FieldData) (bool, error) {
 	b.l.RLock()
 	defer b.l.RUnlock()
 
@@ -113,7 +93,7 @@ func (b *kubeAuthBackend) pathRoleExistenceCheck(ctx context.Context, req *logic
 }
 
 // pathRoleList is used to list all the Roles registered with the backend.
-func (b *kubeAuthBackend) pathRoleList(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
+func (b *rfidAuthBackend) pathRoleList(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
 	b.l.RLock()
 	defer b.l.RUnlock()
 
@@ -125,7 +105,7 @@ func (b *kubeAuthBackend) pathRoleList(ctx context.Context, req *logical.Request
 }
 
 // pathRoleRead grabs a read lock and reads the options set on the role from the storage
-func (b *kubeAuthBackend) pathRoleRead(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
+func (b *rfidAuthBackend) pathRoleRead(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
 	roleName := data.Get("name").(string)
 	if roleName == "" {
 		return logical.ErrorResponse("missing name"), nil
@@ -143,14 +123,7 @@ func (b *kubeAuthBackend) pathRoleRead(ctx context.Context, req *logical.Request
 	}
 
 	// Create a map of data to be returned
-	d := map[string]interface{}{
-		"bound_service_account_names":      role.ServiceAccountNames,
-		"bound_service_account_namespaces": role.ServiceAccountNamespaces,
-	}
-
-	if role.Audience != "" {
-		d["audience"] = role.Audience
-	}
+	d := map[string]interface{}{}
 
 	role.PopulateTokenData(d)
 
@@ -179,7 +152,7 @@ func (b *kubeAuthBackend) pathRoleRead(ctx context.Context, req *logical.Request
 }
 
 // pathRoleDelete removes the role from storage
-func (b *kubeAuthBackend) pathRoleDelete(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
+func (b *rfidAuthBackend) pathRoleDelete(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
 	roleName := data.Get("name").(string)
 	if roleName == "" {
 		return logical.ErrorResponse("missing role name"), nil
@@ -199,7 +172,7 @@ func (b *kubeAuthBackend) pathRoleDelete(ctx context.Context, req *logical.Reque
 
 // pathRoleCreateUpdate registers a new role with the backend or updates the options
 // of an existing role
-func (b *kubeAuthBackend) pathRoleCreateUpdate(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
+func (b *rfidAuthBackend) pathRoleCreateUpdate(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
 	roleName := data.Get("name").(string)
 	if roleName == "" {
 		return logical.ErrorResponse("missing role name"), nil
@@ -220,6 +193,12 @@ func (b *kubeAuthBackend) pathRoleCreateUpdate(ctx context.Context, req *logical
 	} else if role == nil {
 		return nil, fmt.Errorf("role entry not found during update operation")
 	}
+
+	uid := data.Get("uid").(int)
+	if uid == 0 {
+		return logical.ErrorResponse("missing uid"), nil
+	}
+	role.UID = uid
 
 	if err := role.ParseTokenFields(req, data); err != nil {
 		return logical.ErrorResponse(err.Error()), logical.ErrInvalidRequest
@@ -269,39 +248,6 @@ func (b *kubeAuthBackend) pathRoleCreateUpdate(ctx context.Context, req *logical
 		resp.AddWarning("max_ttl is greater than the system or backend mount's maximum TTL value; issued tokens' max TTL value will be truncated")
 	}
 
-	if serviceAccountUUIDs, ok := data.GetOk("bound_service_account_names"); ok {
-		role.ServiceAccountNames = serviceAccountUUIDs.([]string)
-	} else if req.Operation == logical.CreateOperation {
-		role.ServiceAccountNames = data.Get("bound_service_account_names").([]string)
-	}
-	// Verify names was not empty
-	if len(role.ServiceAccountNames) == 0 {
-		return logical.ErrorResponse("\"bound_service_account_names\" can not be empty"), nil
-	}
-	// Verify * was not set with other data
-	if len(role.ServiceAccountNames) > 1 && strutil.StrListContains(role.ServiceAccountNames, "*") {
-		return logical.ErrorResponse("can not mix \"*\" with values"), nil
-	}
-
-	if namespaces, ok := data.GetOk("bound_service_account_namespaces"); ok {
-		role.ServiceAccountNamespaces = namespaces.([]string)
-	} else if req.Operation == logical.CreateOperation {
-		role.ServiceAccountNamespaces = data.Get("bound_service_account_namespaces").([]string)
-	}
-	// Verify namespaces is not empty
-	if len(role.ServiceAccountNamespaces) == 0 {
-		return logical.ErrorResponse("\"bound_service_account_namespaces\" can not be empty"), nil
-	}
-	// Verify * was not set with other data
-	if len(role.ServiceAccountNamespaces) > 1 && strutil.StrListContains(role.ServiceAccountNamespaces, "*") {
-		return logical.ErrorResponse("can not mix \"*\" with values"), nil
-	}
-
-	// optional audience field
-	if audience, ok := data.GetOk("audience"); ok {
-		role.Audience = audience.(string)
-	}
-
 	// Store the entry.
 	entry, err := logical.StorageEntryJSON("role/"+strings.ToLower(roleName), role)
 	if err != nil {
@@ -323,14 +269,7 @@ type roleStorageEntry struct {
 
 	// ServiceAccountNames is the array of service accounts able to
 	// access this role.
-	ServiceAccountNames []string `json:"bound_service_account_names" mapstructure:"bound_service_account_names" structs:"bound_service_account_names"`
-
-	// ServiceAccountNamespaces is the array of namespaces able to access this
-	// role.
-	ServiceAccountNamespaces []string `json:"bound_service_account_namespaces" mapstructure:"bound_service_account_namespaces" structs:"bound_service_account_namespaces"`
-
-	// Audience is an optional jwt claim to verify
-	Audience string `json:"audience" mapstructure:"audience" structs: "audience"`
+	UID int `json:"uid" mapstructure:"uid" structs:"uid"`
 
 	// Deprecated by TokenParams
 	Policies   []string      `json:"policies" structs:"policies" mapstructure:"policies"`

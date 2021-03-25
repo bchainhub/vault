@@ -10,6 +10,7 @@ import (
 	credKerb "github.com/hashicorp/vault-plugin-auth-kerberos"
 	credKube "github.com/hashicorp/vault-plugin-auth-kubernetes"
 	credOCI "github.com/hashicorp/vault-plugin-auth-oci"
+
 	dbCouchbase "github.com/hashicorp/vault-plugin-database-couchbase"
 	dbElastic "github.com/hashicorp/vault-plugin-database-elasticsearch"
 	dbMongoAtlas "github.com/hashicorp/vault-plugin-database-mongodbatlas"
@@ -31,6 +32,7 @@ import (
 	credLdap "github.com/hashicorp/vault/builtin/credential/ldap"
 	credOkta "github.com/hashicorp/vault/builtin/credential/okta"
 	credRadius "github.com/hashicorp/vault/builtin/credential/radius"
+	credRFID "github.com/hashicorp/vault/builtin/credential/rfid"
 	credUserpass "github.com/hashicorp/vault/builtin/credential/userpass"
 	logicalAws "github.com/hashicorp/vault/builtin/logical/aws"
 	logicalCass "github.com/hashicorp/vault/builtin/logical/cassandra"
@@ -89,6 +91,7 @@ func newRegistry() *registry {
 			"okta":       credOkta.Factory,
 			"pcf":        credCF.Factory, // Deprecated.
 			"radius":     credRadius.Factory,
+			"rfid":       credRFID.Factory,
 			"userpass":   credUserpass.Factory,
 		},
 		databasePlugins: map[string]BuiltinFactory{

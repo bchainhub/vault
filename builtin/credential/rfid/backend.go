@@ -60,7 +60,7 @@ func Backend() *rfidAuthBackend {
 }
 
 // config takes a storage object and returns a kubeConfig object
-func (b *rfidAuthBackend) config(ctx context.Context, s logical.Storage) (*kubeConfig, error) {
+func (b *rfidAuthBackend) config(ctx context.Context, s logical.Storage) (*rfidConfig, error) {
 	raw, err := s.Get(ctx, configPath)
 	if err != nil {
 		return nil, err
@@ -69,7 +69,7 @@ func (b *rfidAuthBackend) config(ctx context.Context, s logical.Storage) (*kubeC
 		return nil, nil
 	}
 
-	conf := &kubeConfig{}
+	conf := &rfidConfig{}
 	if err := json.Unmarshal(raw.Value, conf); err != nil {
 		return nil, err
 	}

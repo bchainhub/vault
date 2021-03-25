@@ -3,10 +3,9 @@ package main
 import (
 	"os"
 
-	log "github.com/hashicorp/go-hclog"
-
-	kubeauth "github.com/hashicorp/vault-plugin-auth-kubernetes"
+	hclog "github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/vault/api"
+	"github.com/hashicorp/vault/builtin/credential/rfid"
 	"github.com/hashicorp/vault/sdk/plugin"
 )
 
@@ -18,12 +17,13 @@ func main() {
 	tlsConfig := apiClientMeta.GetTLSConfig()
 	tlsProviderFunc := api.VaultPluginTLSProvider(tlsConfig)
 
-	err := plugin.Serve(&plugin.ServeOpts{
-		BackendFactoryFunc: kubeauth.Factory,
+	if err := plugin.Serve(&plugin.ServeOpts{
+		BackendFactoryFunc: rfid.Factory,
 		TLSProviderFunc:    tlsProviderFunc,
-	})
-	if err != nil {
-		log.L().Error("plugin shutting down", "error", err)
+	}); err != nil {
+		logger := hclog.New(&hclog.LoggerOptions{})
+
+		logger.Error("plugin shutting down", "error", err)
 		os.Exit(1)
 	}
 }

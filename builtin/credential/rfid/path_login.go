@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/logical"
@@ -26,7 +27,7 @@ func pathLogin(b *rfidAuthBackend) *framework.Path {
 
 		Callbacks: map[logical.Operation]framework.OperationFunc{
 			logical.UpdateOperation:         b.pathLogin,
-			logical.AliasLookaheadOperation: b.aliasLookahead,
+			logical.AliasLookaheadOperation: b.pathLogin,
 		},
 
 		HelpSynopsis:    pathLoginHelpSyn,
@@ -41,9 +42,14 @@ func (b *rfidAuthBackend) pathLogin(ctx context.Context, req *logical.Request, d
 		return logical.ErrorResponse("missing role"), nil
 	}
 
-	uidStr := data.Get("uid").(string)
-	if len(uidStr) == 0 {
+	uidRaw := data.Get("uid").(string)
+	if uidRaw == "" {
 		return logical.ErrorResponse("missing uid"), nil
+	}
+
+	uid, err := strconv.Atoi(uidRaw)
+	if err != nil {
+		return logical.ErrorResponse(err.Error()), nil
 	}
 
 	b.l.RLock()
@@ -57,19 +63,17 @@ func (b *rfidAuthBackend) pathLogin(ctx context.Context, req *logical.Request, d
 		return logical.ErrorResponse(fmt.Sprintf("invalid role name \"%s\"", roleName)), nil
 	}
 
-	config, err := b.config(ctx, req.Storage)
-	if err != nil {
-		return nil, err
-	}
-	if config == nil {
-		return nil, errors.New("could not load backend configuration")
+	if role.UID != uid {
+		return nil, errors.New("login unauthorized")
 	}
 
 	auth := &logical.Auth{
-		Alias: &logical.Alias{},
+		Alias: &logical.Alias{
+			Name: roleName,
+		},
 		InternalData: map[string]interface{}{
 			"role": roleName,
-			"uid":  uidStr,
+			"uid":  uidRaw,
 		},
 		Metadata: map[string]string{
 			"role": roleName,
