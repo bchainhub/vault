@@ -16,6 +16,7 @@ export default Service.extend({
   inRootNamespace: equal('path', ROOT_NAMESPACE),
 
   setNamespace(path) {
+    console.log('setting namespace', path);
     if (!path) {
       this.set('path', '');
       return;

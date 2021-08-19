@@ -26,6 +26,7 @@ export default Controller.extend({
   namespaceQueryParam: '',
 
   onQPChange: observer('namespaceQueryParam', function() {
+    console.log('ONQPCHANGE', this.namespaceQueryParam);
     this.namespaceService.setNamespace(this.namespaceQueryParam);
   }),
 

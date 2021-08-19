@@ -40,6 +40,9 @@ export default RESTAdapter.extend({
       headers['X-Vault-Wrap-TTL'] = options.wrapTTL;
     }
     let namespace = typeof options.namespace === 'undefined' ? this.namespaceService.path : options.namespace;
+    if (url == '/v1/sys/capabilities-self') {
+      console.log('CAPABILITIES-SELF', namespace, options.namespace, this.namespaceService.path);
+    }
     if (namespace && !NAMESPACE_ROOT_URLS.some(str => url.includes(str))) {
       headers['X-Vault-Namespace'] = namespace;
     }

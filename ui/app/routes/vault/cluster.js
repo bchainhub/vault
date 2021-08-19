@@ -50,6 +50,7 @@ export default Route.extend(ModelBoundaryRoute, ClusterRoute, {
     } else if (!namespace && !!this.featureFlagService.managedNamespaceRoot) {
       this.transitionTo({ queryParams: { namespace: this.featureFlagService.managedNamespaceRoot } });
     }
+    console.log('beforemodel set namespace');
     this.namespaceService.setNamespace(namespace);
     const id = this.getClusterId(params);
     if (id) {

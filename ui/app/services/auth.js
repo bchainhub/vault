@@ -83,6 +83,7 @@ export default Service.extend({
     };
 
     let namespace = typeof options.namespace === 'undefined' ? this.namespaceService.path : options.namespace;
+    console.log({ namespace });
     if (namespace) {
       defaults.headers['X-Vault-Namespace'] = namespace;
     }
