@@ -51,6 +51,9 @@ func StartListener(lnConfig *configutil.Listener) (net.Listener, *tls.Config, er
 			return nil, nil, err
 		}
 
+	// case "pipe":
+	// 	ln = listenerutil.NewPipeListener()
+
 	default:
 		return nil, nil, fmt.Errorf("invalid listener type: %q", lnConfig.Type)
 	}

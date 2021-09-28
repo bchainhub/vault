@@ -41,6 +41,7 @@ import (
 	"github.com/hashicorp/vault/command/agent/sink/inmem"
 	"github.com/hashicorp/vault/command/agent/template"
 	"github.com/hashicorp/vault/command/agent/winsvc"
+	"github.com/hashicorp/vault/internalshared/listenerutil"
 	"github.com/hashicorp/vault/sdk/helper/consts"
 	"github.com/hashicorp/vault/sdk/helper/logging"
 	"github.com/hashicorp/vault/sdk/logical"
@@ -665,6 +666,25 @@ func (c *AgentCommand) Run(args []string) int {
 		// Create the request handler
 		cacheHandler := cache.Handler(ctx, cacheLogger, leaseCache, inmemSink, proxyVaultToken)
 
+		// make an in-process listener and serve it
+		// inProcListener := listenerutil.NewPipeListener()
+		inProcListener := listenerutil.NewBufConnListener()
+		mux := http.NewServeMux()
+		muxHandler := cacheHandler
+		mux.Handle(consts.AgentPathCacheClear, leaseCache.HandleCacheClear(ctx))
+		mux.Handle("/", muxHandler)
+		server := &http.Server{
+			Addr:              inProcListener.Addr().String(),
+			TLSConfig:         nil,
+			Handler:           mux,
+			ReadHeaderTimeout: 10 * time.Second,
+			ReadTimeout:       30 * time.Second,
+			IdleTimeout:       5 * time.Minute,
+			ErrorLog:          cacheLogger.StandardLogger(nil),
+		}
+		go server.Serve(inProcListener)
+		config.CustomDial = inProcListener.Dial
+
 		var listeners []net.Listener
 		for i, lnConfig := range config.Listeners {
 			ln, tlsConf, err := cache.StartListener(lnConfig)
@@ -693,6 +713,10 @@ func (c *AgentCommand) Run(args []string) int {
 			}
 			if ln.Addr().Network() == "unix" {
 				scheme = "unix://"
+			} else if ln.Addr().Network() == "pipe" {
+				scheme = "pipe://"
+				// lnConfig.CustomDial = listenerutil.PipeListener(ln).Dial
+				// pipeListener = &ln
 			}
 
 			infoKey := fmt.Sprintf("api address %d", i+1)

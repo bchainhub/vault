@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"os"
 	"strings"
 	"time"
@@ -22,12 +23,13 @@ import (
 type Config struct {
 	*configutil.SharedConfig `hcl:"-"`
 
-	AutoAuth       *AutoAuth                  `hcl:"auto_auth"`
-	ExitAfterAuth  bool                       `hcl:"exit_after_auth"`
-	Cache          *Cache                     `hcl:"cache"`
-	Vault          *Vault                     `hcl:"vault"`
-	TemplateConfig *TemplateConfig            `hcl:"template_config"`
-	Templates      []*ctconfig.TemplateConfig `hcl:"templates"`
+	AutoAuth       *AutoAuth                                       `hcl:"auto_auth"`
+	ExitAfterAuth  bool                                            `hcl:"exit_after_auth"`
+	Cache          *Cache                                          `hcl:"cache"`
+	Vault          *Vault                                          `hcl:"vault"`
+	TemplateConfig *TemplateConfig                                 `hcl:"template_config"`
+	Templates      []*ctconfig.TemplateConfig                      `hcl:"templates"`
+	CustomDial     func(network, address string) (net.Conn, error) `hcl:"-" json:"-"`
 }
 
 func (c *Config) Prune() {
@@ -196,7 +198,8 @@ func LoadConfig(path string) (*Config, error) {
 	}
 
 	if result.Cache != nil {
-		if len(result.Listeners) < 1 {
+		// TODO(tvoran): can we just remove this check?
+		if len(result.Listeners) < 1 && result.Cache.Persist == nil {
 			return nil, fmt.Errorf("at least one listener required when cache enabled")
 		}
 
