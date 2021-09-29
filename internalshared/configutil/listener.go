@@ -3,7 +3,6 @@ package configutil
 import (
 	"errors"
 	"fmt"
-	"net"
 	"net/textproto"
 	"strings"
 	"time"
@@ -28,8 +27,6 @@ type ListenerProfiling struct {
 	UnauthenticatedPProfAccess    bool         `hcl:"-"`
 	UnauthenticatedPProfAccessRaw interface{}  `hcl:"unauthenticated_pprof_access,alias:UnauthenticatedPProfAccessRaw"`
 }
-
-type DialFunc func(network, address string) (net.Conn, error)
 
 // Listener is the listener configuration for the server.
 type Listener struct {
@@ -102,8 +99,6 @@ type Listener struct {
 	CorsAllowedOrigins    []string    `hcl:"cors_allowed_origins"`
 	CorsAllowedHeaders    []string    `hcl:"-"`
 	CorsAllowedHeadersRaw []string    `hcl:"cors_allowed_headers,alias:cors_allowed_headers"`
-
-	CustomDial DialFunc `hcl:"-"`
 }
 
 func (l *Listener) GoString() string {

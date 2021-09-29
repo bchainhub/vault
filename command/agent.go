@@ -683,7 +683,7 @@ func (c *AgentCommand) Run(args []string) int {
 			ErrorLog:          cacheLogger.StandardLogger(nil),
 		}
 		go server.Serve(inProcListener)
-		config.CustomDial = inProcListener.Dial
+		config.Cache.CustomDialer = inProcListener
 
 		var listeners []net.Listener
 		for i, lnConfig := range config.Listeners {

@@ -23,13 +23,12 @@ import (
 type Config struct {
 	*configutil.SharedConfig `hcl:"-"`
 
-	AutoAuth       *AutoAuth                                       `hcl:"auto_auth"`
-	ExitAfterAuth  bool                                            `hcl:"exit_after_auth"`
-	Cache          *Cache                                          `hcl:"cache"`
-	Vault          *Vault                                          `hcl:"vault"`
-	TemplateConfig *TemplateConfig                                 `hcl:"template_config"`
-	Templates      []*ctconfig.TemplateConfig                      `hcl:"templates"`
-	CustomDial     func(network, address string) (net.Conn, error) `hcl:"-" json:"-"`
+	AutoAuth       *AutoAuth                  `hcl:"auto_auth"`
+	ExitAfterAuth  bool                       `hcl:"exit_after_auth"`
+	Cache          *Cache                     `hcl:"cache"`
+	Vault          *Vault                     `hcl:"vault"`
+	TemplateConfig *TemplateConfig            `hcl:"template_config"`
+	Templates      []*ctconfig.TemplateConfig `hcl:"templates"`
 }
 
 func (c *Config) Prune() {
@@ -73,6 +72,7 @@ type Cache struct {
 	EnforceConsistency  string      `hcl:"enforce_consistency"`
 	WhenInconsistent    string      `hcl:"when_inconsistent"`
 	Persist             *Persist    `hcl:"persist"`
+	CustomDialer        VaultDialer `hcl:"-"`
 }
 
 // Persist contains configuration needed for persistent caching
@@ -124,6 +124,12 @@ type TemplateConfig struct {
 	ExitOnRetryFailure       bool          `hcl:"exit_on_retry_failure"`
 	StaticSecretRenderIntRaw interface{}   `hcl:"static_secret_render_interval"`
 	StaticSecretRenderInt    time.Duration `hcl:"-"`
+}
+
+// VaultDialer is an interface that allows passing a custom dialer to the Vault
+// client transport config
+type VaultDialer interface {
+	Dial(network, address string) (net.Conn, error)
 }
 
 func NewConfig() *Config {

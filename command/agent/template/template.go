@@ -285,7 +285,7 @@ func newRunnerConfig(sc *ServerConfig, templates ctconfig.TemplateConfigs) (*ctc
 			attempts = ctconfig.DefaultRetryAttempts
 		}
 
-		conf.Vault.Transport.CustomDial = sc.AgentConfig.CustomDial
+		conf.Vault.Transport.CustomDialer = sc.AgentConfig.Cache.CustomDialer
 		// TODO(tvoran): do we still need all these if we're just doing it over pipe?
 		// scheme := "unix://"
 		// if sc.AgentConfig.Listeners[0].Type == "tcp" {
