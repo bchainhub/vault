@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"net"
 	"os"
 	"strings"
 	"time"
@@ -66,13 +65,13 @@ type Vault struct {
 
 // Cache contains any configuration needed for Cache mode
 type Cache struct {
-	UseAutoAuthTokenRaw interface{} `hcl:"use_auto_auth_token"`
-	UseAutoAuthToken    bool        `hcl:"-"`
-	ForceAutoAuthToken  bool        `hcl:"-"`
-	EnforceConsistency  string      `hcl:"enforce_consistency"`
-	WhenInconsistent    string      `hcl:"when_inconsistent"`
-	Persist             *Persist    `hcl:"persist"`
-	CustomDialer        VaultDialer `hcl:"-"`
+	UseAutoAuthTokenRaw interface{}              `hcl:"use_auto_auth_token"`
+	UseAutoAuthToken    bool                     `hcl:"-"`
+	ForceAutoAuthToken  bool                     `hcl:"-"`
+	EnforceConsistency  string                   `hcl:"enforce_consistency"`
+	WhenInconsistent    string                   `hcl:"when_inconsistent"`
+	Persist             *Persist                 `hcl:"persist"`
+	InProcDialer        ctconfig.TransportDialer `hcl:"-"`
 }
 
 // Persist contains configuration needed for persistent caching
@@ -124,12 +123,6 @@ type TemplateConfig struct {
 	ExitOnRetryFailure       bool          `hcl:"exit_on_retry_failure"`
 	StaticSecretRenderIntRaw interface{}   `hcl:"static_secret_render_interval"`
 	StaticSecretRenderInt    time.Duration `hcl:"-"`
-}
-
-// VaultDialer is an interface that allows passing a custom dialer to the Vault
-// client transport config
-type VaultDialer interface {
-	Dial(network, address string) (net.Conn, error)
 }
 
 func NewConfig() *Config {

@@ -195,4 +195,4 @@ require (
 	mvdan.cc/gofumpt v0.1.1
 )
 
-replace github.com/hashicorp/consul-template => ./consul-template
+replace github.com/hashicorp/consul-template => github.com/tvoran/consul-template v0.27.2-0.20211001014530-1148ff14aa78
