@@ -3,14 +3,23 @@ import Route from '@ember/routing/route';
 import { inject as service } from '@ember/service';
 
 const AUTH = 'vault.cluster.auth';
-const PROVIDER = 'vault.cluster.identity.oidc-provider';
+const PROVIDER = 'vault.cluster.oidc-provider';
+const PROVIDER_NS = 'vault.cluster.oidc-provider.authz';
 
-export default class VaultClusterIdentityOidcProviderRoute extends Route {
+export default class VaultClusterOidcProviderAuthzRoute extends Route {
   @service auth;
   @service router;
 
   get win() {
     return this.window || window;
+  }
+
+  _cleanNamespace(params) {
+    let { namespace } = params;
+    if (namespace === '%20') {
+      return null;
+    }
+    return namespace;
   }
 
   _redirect(url, params) {
@@ -24,26 +33,33 @@ export default class VaultClusterIdentityOidcProviderRoute extends Route {
 
   beforeModel(transition) {
     const currentToken = this.auth.get('currentTokenName');
-    let { redirect_to, ...qp } = transition.to.queryParams;
-    console.debug('DEBUG: removing redirect_to', redirect_to);
+    let { provider_name } = transition.to.parent.params;
+    let namespace = this._cleanNamespace(transition.to.params);
+    let qp = transition.to.queryParams;
+    // remove redirect if carried over from auth
+    qp.redirect_to = null;
     if (!currentToken && 'none' === qp.prompt?.toLowerCase()) {
       this._redirect(qp.redirect_uri, {
         state: qp.state,
         error: 'login_required',
       });
     } else if (!currentToken || 'login' === qp.prompt?.toLowerCase()) {
+      console.debug('! currentToken or prompt = login');
       let shouldLogout = !!currentToken;
       if ('login' === qp.prompt?.toLowerCase()) {
+        console.log('prompt = login');
         // need to remove before redirect to avoid infinite loop
         qp.prompt = null;
       }
-      return this._redirectToAuth(transition.to.params?.provider_name, qp, shouldLogout);
+      return this._redirectToAuth(provider_name, qp, shouldLogout, namespace);
     }
   }
 
-  _redirectToAuth(provider_name, queryParams, logout = false) {
+  _redirectToAuth(provider_name, queryParams, logout = false, namespace = null) {
     let { cluster_name } = this.paramsFor('vault.cluster');
-    let url = this.router.urlFor(PROVIDER, cluster_name, provider_name, { queryParams });
+    let url = namespace
+      ? this.router.urlFor(PROVIDER_NS, cluster_name, provider_name, namespace, { queryParams })
+      : this.router.urlFor(PROVIDER, cluster_name, provider_name, { queryParams });
     // This is terrible, I'm sorry
     // Need to do this because transitionTo (as used in auth-form) expects url without
     // rootURL /ui/ at the beginning, but urlFor builds it in. We can't use currentRoute
@@ -53,7 +69,9 @@ export default class VaultClusterIdentityOidcProviderRoute extends Route {
       this.auth.deleteCurrentToken();
     }
     // o param can be anything, as long as it's present the auth page will change
-    return this.transitionTo(AUTH, cluster_name, { queryParams: { redirect_to: url, o: provider_name } });
+    return this.transitionTo(AUTH, cluster_name, {
+      queryParams: { redirect_to: url, o: provider_name, namespace },
+    });
   }
 
   _buildUrl(urlString, params) {
@@ -88,10 +106,12 @@ export default class VaultClusterIdentityOidcProviderRoute extends Route {
   }
 
   async model(params) {
-    let { provider_name, ...qp } = params;
+    let { provider_name, ...qp } = this.paramsFor('vault.cluster.oidc-provider');
+    qp.redirect_to = null;
     let decodedRedirect = decodeURI(qp.redirect_uri);
-    let baseUrl = this.namespace.path
-      ? `${this.win.origin}/v1/${this.namespace.path}/identity/oidc/provider/${provider_name}/authorize`
+    let namespace = this._cleanNamespace(params.namespace);
+    let baseUrl = namespace
+      ? `${this.win.origin}/v1/${namespace}/identity/oidc/provider/${provider_name}/authorize`
       : `${this.win.origin}/v1/identity/oidc/provider/${provider_name}/authorize`;
     let endpoint = this._buildUrl(baseUrl, qp);
     try {
