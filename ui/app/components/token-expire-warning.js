@@ -6,7 +6,7 @@ export default class TokenExpireWarning extends Component {
 
   get showWarning() {
     let currentRoute = this.router.currentRouteName;
-    if ('vault.cluster.identity.oidc-provider' === currentRoute) {
+    if (currentRoute.startsWith('vault.cluster.oidc-provider')) {
       return false;
     }
     return !!this.args.expirationDate;
