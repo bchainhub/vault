@@ -7,7 +7,8 @@ const AUTH = 'vault.cluster.auth';
 const CLUSTER = 'vault.cluster';
 const CLUSTER_INDEX = 'vault.cluster.index';
 const OIDC_CALLBACK = 'vault.cluster.oidc-callback';
-const OIDC_PROVIDER = 'vault.cluster.identity.oidc-provider';
+const OIDC_PROVIDER = 'vault.cluster.oidc-provider.index';
+const OIDC_PROVIDER_AUTHZ = 'vault.cluster.oidc-provider.authz';
 const DR_REPLICATION_SECONDARY = 'vault.cluster.replication-dr-promote';
 const DR_REPLICATION_SECONDARY_DETAILS = 'vault.cluster.replication-dr-promote.details';
 const EXCLUDED_REDIRECT_URLS = ['/vault/logout'];
@@ -80,12 +81,18 @@ export default Mixin.create({
 
       return DR_REPLICATION_SECONDARY;
     }
-    if ((transition && transition.targetName === OIDC_PROVIDER) || this.routeName === OIDC_PROVIDER) {
-      return OIDC_PROVIDER;
-    }
     if (!isAuthed) {
       if ((transition && transition.targetName === OIDC_CALLBACK) || this.routeName === OIDC_CALLBACK) {
         return OIDC_CALLBACK;
+      }
+      if ((transition && transition.targetName === OIDC_PROVIDER) || this.routeName === OIDC_PROVIDER) {
+        return OIDC_PROVIDER;
+      }
+      if (
+        (transition && transition.targetName === OIDC_PROVIDER_AUTHZ) ||
+        this.routeName === OIDC_PROVIDER_AUTHZ
+      ) {
+        return OIDC_PROVIDER_AUTHZ;
       }
       return AUTH;
     }
