@@ -1,0 +1,3 @@
+```release-note:improvement
+MISC: Changed grammar of step 5 at https://www.vaultproject.io/docs/concepts/seal#migration-post-vault-1-5-1 
+```
