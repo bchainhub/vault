@@ -72,28 +72,30 @@ export default TtlForm.extend({
       setEnable = !!enable;
     }
 
+    let seconds;
     if (typeOf(value) === 'number') {
       // if the passed value is a number, assume unit is seconds
-      time = value;
+      seconds = value;
     } else {
-      try {
-        const seconds = Duration.parse(value).seconds();
-        time = seconds;
-        // get largest unit with no remainder
-        if (seconds % secondsMap.d === 0) {
-          unit = 'd';
-        } else if (seconds % secondsMap.h === 0) {
-          unit = 'h';
-        } else if (seconds % secondsMap.m === 0) {
-          unit = 'm';
-        }
+      seconds = Duration.parse(value).seconds();
+    }
 
-        if (unit !== 's') {
-          time = convertFromSeconds(seconds, unit);
-        }
-      } catch (e) {
-        // if parsing fails leave as default 30s
+    try {
+      time = seconds;
+      // get largest unit with no remainder
+      if (seconds % secondsMap.d === 0) {
+        unit = 'd';
+      } else if (seconds % secondsMap.h === 0) {
+        unit = 'h';
+      } else if (seconds % secondsMap.m === 0) {
+        unit = 'm';
       }
+
+      if (unit !== 's') {
+        time = convertFromSeconds(seconds, unit);
+      }
+    } catch (e) {
+      // if parsing fails leave as seconds
     }
 
     this.setProperties({
