@@ -14,7 +14,6 @@ project "vault" {
       "release/1.8.x",
       "release/1.9.x",
       "release/1.10.x",
-      "cipherboy-docker-ubi-crt-enablement-tvoran",
     ]
   }
 }
