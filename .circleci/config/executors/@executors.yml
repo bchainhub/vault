@@ -11,7 +11,7 @@ go-machine:
   working_directory: /home/circleci/go/src/github.com/hashicorp/vault
 node:
   docker:
-    - image: docker.mirror.hashicorp.services/circleci/node:14-browsers
+    - image: docker.mirror.hashicorp.services/cimg/-browsers
       environment:
         # See https://git.io/vdao3 for details.
         JOBS: 2
