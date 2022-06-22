@@ -10,7 +10,7 @@ jobs:
     docker:
     - environment:
         JOBS: 2
-      image: docker.mirror.hashicorp.services/cimg/node:13.12-browsers'
+      image: docker.mirror.hashicorp.services/cimg/node:13.12-browsers
     shell: /usr/bin/env bash -euo pipefail -c
     working_directory: /home/circleci/go/src/github.com/hashicorp/vault
     steps:
@@ -353,7 +353,7 @@ jobs:
     docker:
     - environment:
         JOBS: 2
-      image: docker.mirror.hashicorp.services/cimg/node:13.12-browsers'
+      image: docker.mirror.hashicorp.services/cimg/node:13.12-browsers
     shell: /usr/bin/env bash -euo pipefail -c
     working_directory: /home/circleci/go/src/github.com/hashicorp/vault
     resource_class: xlarge
