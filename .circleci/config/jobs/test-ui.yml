@@ -2,10 +2,17 @@ executor: node
 resource_class: xlarge
 steps:
   - exit-if-branch-does-not-need-test-ui
+  - browser-tools/install-chrome
+  - browser-tools/install-chromedriver
   - checkout
   - restore_yarn_cache
   - attach_workspace:
       at: .
+  - run:
+      name: Check Chrome install
+      command: |
+        google-chrome --version
+        chromedriver --version
   - run:
       name: Test UI
       command: |

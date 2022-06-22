@@ -1,7 +1,14 @@
 executor: node
 steps:
+  - browser-tools/install-chrome
+  - browser-tools/install-chromedriver
   - checkout
   - restore_yarn_cache
+  - run:
+      name: Check Chrome install
+      command: |
+        google-chrome --version
+        chromedriver --version
   - run:
       name: Install UI dependencies
       command: |
