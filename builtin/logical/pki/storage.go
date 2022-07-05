@@ -145,6 +145,7 @@ type issuerEntry struct {
 	SerialNumber         string                    `json:"serial_number"`
 	LeafNotAfterBehavior certutil.NotAfterBehavior `json:"not_after_behavior"`
 	Usage                issuerUsage               `json:"usage"`
+	IssuingMount         string                    `json:"issuing_mount"`
 }
 
 type localCRLConfigEntry struct {
@@ -538,7 +539,7 @@ func (sc *storageContext) deleteIssuer(id issuerID) (bool, error) {
 	return wasDefault, sc.Storage.Delete(sc.Context, issuerPrefix+id.String())
 }
 
-func (sc *storageContext) importIssuer(certValue string, issuerName string) (*issuerEntry, bool, error) {
+func (sc *storageContext) importIssuer(certValue string, issuerName, issuingMount string) (*issuerEntry, bool, error) {
 	// importIssuers imports the specified PEM-format certificate (from
 	// certValue) into the new PKI storage format. The first return field is a
 	// reference to the new issuer; the second is whether or not the issuer
@@ -616,6 +617,7 @@ func (sc *storageContext) importIssuer(certValue string, issuerName string) (*is
 	result.Certificate = certValue
 	result.LeafNotAfterBehavior = certutil.ErrNotAfterBehavior
 	result.Usage.ToggleUsage(IssuanceUsage, CRLSigningUsage)
+	result.IssuingMount = issuingMount
 
 	// We shouldn't add CSRs or multiple certificates in this
 	countCertificates := strings.Count(result.Certificate, "-BEGIN ")
@@ -887,13 +889,13 @@ func (sc *storageContext) writeCaBundle(caBundle *certutil.CertBundle, issuerNam
 		return nil, nil, err
 	}
 
-	myIssuer, _, err := sc.importIssuer(caBundle.Certificate, issuerName)
+	myIssuer, _, err := sc.importIssuer(caBundle.Certificate, issuerName, "")
 	if err != nil {
 		return nil, nil, err
 	}
 
 	for _, cert := range caBundle.CAChain {
-		if _, _, err = sc.importIssuer(cert, ""); err != nil {
+		if _, _, err = sc.importIssuer(cert, "", ""); err != nil {
 			return nil, nil, err
 		}
 	}

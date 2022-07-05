@@ -117,6 +117,12 @@ func (b *backend) pathImportIssuers(ctx context.Context, req *logical.Request, d
 	b.issuersLock.Lock()
 	defer b.issuersLock.Unlock()
 
+	var issuingMount string
+	im, ok := data.GetOk("issuing_mount")
+	if ok {
+		issuingMount = im.(string)
+	}
+
 	keysAllowed := strings.HasSuffix(req.Path, "bundle") || req.Path == "config/ca"
 
 	if b.useLegacyBundleCaStorage() {
@@ -216,7 +222,7 @@ func (b *backend) pathImportIssuers(ctx context.Context, req *logical.Request, d
 	}
 
 	for certIndex, certPem := range issuers {
-		cert, existing, err := sc.importIssuer(certPem, "")
+		cert, existing, err := sc.importIssuer(certPem, "", issuingMount)
 		if err != nil {
 			return logical.ErrorResponse(fmt.Sprintf("Error parsing issuer %v: %v\n%v", certIndex, err, certPem)), nil
 		}

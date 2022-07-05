@@ -156,6 +156,7 @@ func (b *backend) pathFetchRead(ctx context.Context, req *logical.Request, data 
 	var certificate []byte
 	var fullChain []byte
 	var revocationTime int64
+	var issuingMount string
 	response = &logical.Response{
 		Data: map[string]interface{}{},
 	}
@@ -164,7 +165,6 @@ func (b *backend) pathFetchRead(ctx context.Context, req *logical.Request, data 
 	// this is basically handled by setting contentType or not.
 	// Errors don't cause an immediate exit, because the raw
 	// paths still need to return raw output.
-	var issuingMount string
 	switch {
 	case req.Path == "ca" || req.Path == "ca/pem":
 		serial = "ca"
@@ -172,13 +172,6 @@ func (b *backend) pathFetchRead(ctx context.Context, req *logical.Request, data 
 		if req.Path == "ca/pem" {
 			pemType = "CERTIFICATE"
 			contentType = "application/pem-certificate-chain"
-		}
-		entry, err := req.Storage.Get(ctx, "issuing_mount")
-		if err != nil {
-			return nil, err
-		}
-		if entry != nil {
-			issuingMount = string(entry.Value)
 		}
 	case req.Path == "ca_chain" || req.Path == "cert/ca_chain":
 		serial = "ca_chain"
@@ -225,6 +218,18 @@ func (b *backend) pathFetchRead(ctx context.Context, req *logical.Request, data 
 				goto reply
 			}
 		}
+
+		defIssuer, err := sc.resolveIssuerReference("default")
+		if err != nil {
+			retErr = err
+			goto reply
+		}
+		issuer, err := sc.fetchIssuerById(defIssuer)
+		if err != nil {
+			retErr = err
+			goto reply
+		}
+		issuingMount = issuer.IssuingMount
 
 		if serial == "ca_chain" {
 			rawChain := caInfo.GetFullChain()
