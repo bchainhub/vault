@@ -164,7 +164,7 @@ func (b *backend) pathFetchRead(ctx context.Context, req *logical.Request, data 
 	// this is basically handled by setting contentType or not.
 	// Errors don't cause an immediate exit, because the raw
 	// paths still need to return raw output.
-
+	var issuingMount string
 	switch {
 	case req.Path == "ca" || req.Path == "ca/pem":
 		serial = "ca"
@@ -172,6 +172,13 @@ func (b *backend) pathFetchRead(ctx context.Context, req *logical.Request, data 
 		if req.Path == "ca/pem" {
 			pemType = "CERTIFICATE"
 			contentType = "application/pem-certificate-chain"
+		}
+		entry, err := req.Storage.Get(ctx, "issuing_mount")
+		if err != nil {
+			return nil, err
+		}
+		if entry != nil {
+			issuingMount = string(entry.Value)
 		}
 	case req.Path == "ca_chain" || req.Path == "cert/ca_chain":
 		serial = "ca_chain"
@@ -332,7 +339,9 @@ reply:
 			response.Data["ca_chain"] = string(fullChain)
 		}
 	}
-
+	if issuingMount != "" {
+		response.Data["issuing_mount"] = issuingMount
+	}
 	return
 }
 

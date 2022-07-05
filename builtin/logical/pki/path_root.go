@@ -274,6 +274,8 @@ func (b *backend) pathIssuerSignIntermediate(ctx context.Context, req *logical.R
 		), nil
 	}
 
+	issuingMount := data.Get("issuing_mount").(string)
+
 	role := &roleEntry{
 		OU:                        data.Get("ou").([]string),
 		Organization:              data.Get("organization").([]string),
@@ -425,6 +427,16 @@ func (b *backend) pathIssuerSignIntermediate(ctx context.Context, req *logical.R
 	})
 	if err != nil {
 		return nil, fmt.Errorf("unable to store certificate locally: %w", err)
+	}
+
+	if issuingMount != "" {
+		err = req.Storage.Put(ctx, &logical.StorageEntry{
+			Key:   "issuing_mount",
+			Value: []byte(issuingMount),
+		})
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if parsedBundle.Certificate.MaxPathLen == 0 {

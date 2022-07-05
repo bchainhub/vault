@@ -27,6 +27,10 @@ previously-generated key from the generation
 endpoint. Additional parent CAs may be optionally
 appended to the bundle.`,
 			},
+			"issuing_mount": {
+				Type:        framework.TypeString,
+				Description: `Path to another PKI secrets mount, which was responsible for signing this intermediate CA certificate`,
+			},
 		},
 		Operations: map[logical.Operation]framework.OperationHandler{
 			logical.UpdateOperation: &framework.PathOperation{
