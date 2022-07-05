@@ -22,6 +22,7 @@ export default Model.extend({
       'issueDate',
       'expiryDate',
       'serialNumber',
+      'issuers',
     ];
   }),
 
@@ -40,6 +41,7 @@ export default Model.extend({
     masked: true,
   }),
   commonName: attr('string'),
+  issuers: attr('array'),
   excludeCnFromSans: attr('boolean', {
     label: 'Exclude Common Name from Subject Alternative Names (SANs)',
     defaultValue: false,

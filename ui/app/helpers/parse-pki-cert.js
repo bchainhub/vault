@@ -37,6 +37,9 @@ export function parsePkiCert([model]) {
   const commonNames = cert?.subject?.typesAndValues
     .filter((rdn) => rdn?.type === commonNameOID)
     .map((rdn) => rdn?.value?.valueBlock?.value);
+  const issuerCommonNames = cert?.issuer?.typesAndValues
+    .filter((rdn) => rdn?.type === commonNameOID)
+    .map((rdn) => rdn?.value?.valueBlock?.value);
 
   // Theoretically, there might be multiple (or no) CommonNames -- but Vault
   // presently refuses to issue certificates without CommonNames in most
@@ -49,11 +52,13 @@ export function parsePkiCert([model]) {
   // field themselves are Time values.
   const expiryDate = cert?.notAfter?.value;
   const issueDate = cert?.notBefore?.value;
+
   return {
     can_parse: true,
     common_name: commonName,
     expiry_date: expiryDate,
     issue_date: issueDate,
+    issuers: issuerCommonNames,
   };
 }
 
