@@ -1,0 +1,23 @@
+{{#if (has-block)}}
+  {{yield}}
+{{else}}
+  <div class="box is-marginless">
+    <div class="title has-padding-bottom is-size-4">
+      <Icon @name={{@icon}} @size="24" class="has-text-grey-light" />
+      {{or @title @type}}
+      <span class={{concat "is-sub-header-info-card" (if @route " is-light-background" " is-dark-background")}}>
+        {{or @type "This certificate"}}
+      </span>
+      {{#if @route}}
+        <a href={{@route}}>
+          <span class="is-info-card-link is-size-6">View</span>
+          <Icon @name="external-link" @size="24" class="is-info-link" />
+        </a>
+      {{/if}}
+    </div>
+    <div class="has-left-margin-s">
+      <div> Expires <span class="has-text-grey">{{@expiration}}</span> </div>
+      <div> Serial Number <span class="has-text-grey">{{@serial}}</span> </div>
+    </div>
+  </div>
+{{/if}}

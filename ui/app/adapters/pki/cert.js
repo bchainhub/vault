@@ -21,6 +21,12 @@ export default Adapter.extend({
     return { data };
   },
 
+  queryIssuingCert(backend, id) {
+    return this.ajax(this.urlFor(backend, id), 'GET').then((resp) => {
+      return resp;
+    });
+  },
+
   fetchByQuery(store, query) {
     const { backend, id } = query;
     return this.ajax(this.urlFor(backend, id), 'GET', this.optionsForQuery(id)).then((resp) => {

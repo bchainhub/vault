@@ -1,9 +1,12 @@
 import { helper } from '@ember/component/helper';
 import * as asn1js from 'asn1js';
+import * as pvtsutils from 'pvtsutils';
 import { fromBase64, stringToArrayBuffer } from 'pvutils';
 import { Certificate } from 'pkijs';
 
-export function parsePkiCert([model]) {
+export function parsePkiCert(params) {
+  let model = params[0];
+  let parseSerial = params.length === 2 ? params[1] : null;
   // model has to be the responseJSON from PKI serializer
   // return if no certificate or if the "certificate" is actually a CRL
   if (!model.certificate || model.certificate.includes('BEGIN X509 CRL')) {
@@ -52,14 +55,22 @@ export function parsePkiCert([model]) {
   // field themselves are Time values.
   const expiryDate = cert?.notAfter?.value;
   const issueDate = cert?.notBefore?.value;
-
-  return {
+  const parsedCert = {
     can_parse: true,
     common_name: commonName,
     expiry_date: expiryDate,
     issue_date: issueDate,
     issuers: issuerCommonNames,
   };
+  let serialNumber;
+  if (parseSerial) {
+    serialNumber = pvtsutils.Convert.ToHex(cert.serialNumber.valueBlock.valueHex).match(/.{2}/g).join(':');
+    return {
+      ...parsedCert,
+      serial_number: serialNumber,
+    };
+  }
+  return parsedCert;
 }
 
 export default helper(parsePkiCert);

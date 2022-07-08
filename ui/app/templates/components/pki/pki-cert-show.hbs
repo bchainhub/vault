@@ -21,45 +21,87 @@
     data-test-warning
   />
 {{/if}}
-<div class="box is-fullwidth is-sideless is-paddingless is-marginless">
-  <MessageError @model={{this.model}} />
-  {{#each this.model.attrs as |attr|}}
-    {{#if (eq attr.type "object")}}
-      <InfoTableRow
-        data-test-table-row
-        @label={{capitalize (or attr.options.label (humanize (dasherize attr.name)))}}
-        @value={{stringify (get this.model attr.name)}}
+<div class="box is-fullwidth is-sideless is-marginless">
+  <div class="columns is-centered">
+    <div class="column is-two-fifths">
+      {{#unless this.certIsRoot}}
+        <InfoCard
+          @type="Root"
+          @title={{this.rootCertificate.common_name}}
+          @route={{concat this.mountLink this.rootCertificate.serial_number}}
+          @expiration={{this.rootCertificate.expiry_date}}
+          @serial={{this.rootCertificate.serial_number}}
+          @icon="org"
+        />
+        <div class="is-info-card-arrow has-text-centered">
+          <Icon @name="arrow-down" @size="24" />
+        </div>
+      {{/unless}}
+      {{#each this.caChain as |cert|}}
+        <InfoCard
+          @type="Intermediate"
+          @title={{cert.common_name}}
+          @route={{concat this.mountLink cert.serial_number}}
+          @expiration={{cert.expiry_date}}
+          @serial={{cert.serial_number}}
+          @icon="certificate"
+        />
+        <div class="is-info-card-arrow has-text-centered">
+          <Icon @name="arrow-down" @size="24" />
+        </div>
+      {{/each}}
+      <InfoCard
+        @title={{this.model.commonName}}
+        @type={{if this.certIsRoot "Root"}}
+        @expiration={{this.model.expiryDate}}
+        @serial={{this.model.serialNumber}}
+        @icon={{if this.certIsRoot "org" "certificate"}}
       />
-    {{else}}
-      {{#if (and attr.options.masked (get this.model attr.name))}}
-        <InfoTableRow
-          data-test-table-row
-          @label={{capitalize (or attr.options.label (humanize (dasherize attr.name)))}}
-          @value={{get this.model attr.name}}
-        >
-          <MaskedInput @value={{get this.model attr.name}} @displayOnly={{true}} @allowCopy={{true}} />
-        </InfoTableRow>
-      {{else if (and (get this.model attr.name) (or (eq attr.name "issueDate") (eq attr.name "expiryDate")))}}
-        <InfoTableRow
-          data-test-table-row
-          @label={{capitalize (or attr.options.label (humanize (dasherize attr.name)))}}
-          @value={{date-format (get this.model attr.name) "MMM dd, yyyy hh:mm:ss a" isFormatted=true}}
-        />
-      {{else if (eq attr.name "revocationTime")}}
-        <InfoTableRow
-          data-test-table-row
-          @label={{capitalize (or attr.options.label (humanize (dasherize attr.name)))}}
-          @value={{date-format (get this.model attr.name) "MMM dd, yyyy hh:mm:ss a"}}
-        />
-      {{else}}
-        <InfoTableRow
-          data-test-table-row
-          @label={{capitalize (or attr.options.label (humanize (dasherize attr.name)))}}
-          @value={{get this.model attr.name}}
-        />
-      {{/if}}
-    {{/if}}
-  {{/each}}
+    </div>
+    <div class="column">
+      <h1 class="title is-4" data-test-secret-header="true">
+        Metadata
+      </h1>
+      <MessageError @model={{this.model}} />
+      {{#each this.model.attrs as |attr|}}
+        {{#if (eq attr.type "object")}}
+          <InfoTableRow
+            data-test-table-row
+            @label={{capitalize (or attr.options.label (humanize (dasherize attr.name)))}}
+            @value={{stringify (get this.model attr.name)}}
+          />
+        {{else}}
+          {{#if (and attr.options.masked (get this.model attr.name))}}
+            <InfoTableRow
+              data-test-table-row
+              @label={{capitalize (or attr.options.label (humanize (dasherize attr.name)))}}
+              @value={{get this.model attr.name}}
+            >
+              <MaskedInput @value={{get this.model attr.name}} @displayOnly={{true}} @allowCopy={{true}} />
+            </InfoTableRow>
+          {{else if (and (get this.model attr.name) (or (eq attr.name "issueDate") (eq attr.name "expiryDate")))}}
+            <InfoTableRow
+              data-test-table-row
+              @label={{capitalize (or attr.options.label (humanize (dasherize attr.name)))}}
+              @value={{date-format (get this.model attr.name) "MMM dd, yyyy hh:mm:ss a" isFormatted=true}}
+            />
+          {{else if (eq attr.name "revocationTime")}}
+            <InfoTableRow
+              data-test-table-row
+              @label={{capitalize (or attr.options.label (humanize (dasherize attr.name)))}}
+              @value={{date-format (get this.model attr.name) "MMM dd, yyyy hh:mm:ss a"}}
+            />
+          {{else}}
+            <InfoTableRow
+              data-test-table-row
+              @label={{capitalize (or attr.options.label (humanize (dasherize attr.name)))}}
+              @value={{get this.model attr.name}}
+            />
+          {{/if}}
+        {{/if}}
+      {{/each}}
+    </div>
+  </div>
 </div>
 
 <div class="field is-grouped is-grouped-split box is-fullwidth is-bottomless">

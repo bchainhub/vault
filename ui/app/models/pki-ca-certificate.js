@@ -15,6 +15,7 @@ export default Certificate.extend({
       'privateKey',
       'privateKeyType',
       'serialNumber',
+      'issuingMount',
     ];
   }),
   addBasicConstraints: attr('boolean', {
@@ -42,6 +43,7 @@ export default Certificate.extend({
     label: 'Expiration date',
   }),
   issueDate: attr('string'),
+  issuingMount: attr('string'),
   keyBits: attr('number', {
     defaultValue: 2048,
   }),

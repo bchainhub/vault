@@ -1,0 +1,30 @@
+.is-sub-header-info-card {
+  border-radius: $radius-large;
+  font-weight: normal !important;
+  padding: $spacing-xxs;
+  font-size: $size-6;
+}
+.is-light-background {
+  background-color: $ui-gray-100;
+}
+.is-dark-background {
+  background-color: $grey-light;
+}
+.is-info-card-link {
+  padding-left: $spacing-m;
+  color: $blue;
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.is-info-link {
+  color: $blue;
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.is-info-card-arrow {
+  padding: $spacing-m;
+}
