@@ -909,14 +909,20 @@ func createCertificate(data *CreationBundle, randReader io.Reader, privateKeyGen
 }
 
 func selectSignatureAlgorithmForECDSA(pub crypto.PublicKey, signatureBits int) x509.SignatureAlgorithm {
+	// Take two...
+	//
 	// Previously we preferred the user-specified signature bits for ECDSA
 	// keys. However, this could result in using a longer hash function than
 	// the underlying NIST P-curve will encode (e.g., a SHA-512 hash with a
 	// P-256 key). This isn't ideal: the hash is implicitly truncated
-	// (effectively turning it into SHA-512/256) and we then need to rely
-	// on the prefix security of the hash. Since both NIST and Mozilla guidance
-	// suggest instead using the correct hash function, we should prefer that
-	// over the operator-specified signatureBits.
+	// (effectively turning it into a pseudo-SHA-512/256 with wrong IV value)
+	// and we then need to rely on the prefix security of the hash.
+	//
+	// While both NIST and Mozilla guidance suggest instead using the correct
+	// hash function (and we should prefer that over the operator-specified
+	// when signatureBits exceeds that to prevent truncation...)...
+	// ...we've had to revise this to allow _smaller_ signature hashes than
+	// public keys (such as SHA-256 with P-521) due to customer requests.
 	//
 	// Lastly, note that pub above needs to be the _signer's_ public key;
 	// the issue with DefaultOrValueHashBits is that it is called at role
@@ -932,12 +938,36 @@ func selectSignatureAlgorithmForECDSA(pub crypto.PublicKey, signatureBits int) x
 	if !ok {
 		return x509.ECDSAWithSHA256
 	}
+
+	// Identify the maximum allowed hash size based on the underlying curve
+	// type. We don't really allow SHA-224 signatures, so allow P-224 to use
+	// P-256 (which matches NIST guidance), rather than restricting it to
+	// SHA-224.
+	var curveMaxHashBits int
 	switch key.Curve {
 	case elliptic.P224(), elliptic.P256():
-		return x509.ECDSAWithSHA256
+		curveMaxHashBits = 256
 	case elliptic.P384():
-		return x509.ECDSAWithSHA384
+		curveMaxHashBits = 384
 	case elliptic.P521():
+		curveMaxHashBits = 512
+	default:
+		curveMaxHashBits = 256
+	}
+
+	// When signature bits exceeds the allowed maximum hash size, OR when
+	// we lack a value, use the maximum allowed as the default.
+	if signatureBits > curveMaxHashBits || signatureBits == 0 {
+		signatureBits = curveMaxHashBits
+	}
+
+	// Finally dispatch this back to a concrete X509 signature type.
+	switch signatureBits {
+	case 256:
+		return x509.ECDSAWithSHA256
+	case 384:
+		return x509.ECDSAWithSHA384
+	case 512:
 		return x509.ECDSAWithSHA512
 	default:
 		return x509.ECDSAWithSHA256
