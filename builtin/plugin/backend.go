@@ -51,11 +51,18 @@ func Backend(ctx context.Context, conf *logical.BackendConfig) (*PluginBackend, 
 	}
 
 	sys := conf.System
+	// Look for plugin in the plugin catalog
+	pluginRunner, err := sys.LookupPlugin(ctx, name, pluginType)
+	if err != nil {
+		return nil, err
+	}
 
 	merr := &multierror.Error{}
 	// NewBackend with isMetadataMode set to false
 	raw, err := bplugin.NewBackend(ctx, name, pluginType, sys, conf, false, true)
-	if err != nil {
+	if err == nil && !pluginRunner.Builtin {
+		b.autoMTLSSupported = true
+	} else {
 		merr = multierror.Append(merr, err)
 		// NewBackend with isMetadataMode set to true
 		raw, err = bplugin.NewBackend(ctx, name, pluginType, sys, conf, true, false)
@@ -63,13 +70,6 @@ func Backend(ctx context.Context, conf *logical.BackendConfig) (*PluginBackend, 
 			merr = multierror.Append(merr, err)
 			return nil, merr
 		}
-	} else {
-		b.Backend = raw
-		b.config = conf
-		b.loaded = true
-		b.autoMTLSSupported = true
-
-		return &b, nil
 	}
 
 	// Setup the backend so we can inspect the SpecialPaths and Type
