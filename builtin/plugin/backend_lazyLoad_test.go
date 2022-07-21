@@ -54,12 +54,18 @@ func testLazyLoad(t *testing.T, methodWrapper func() error) *PluginBackend {
 		System: sysView,
 		Config: map[string]string{
 			"plugin_name": "test-plugin",
-			"plugin_type": "secret",
+			"plugin_type": consts.PluginTypeSecrets.String(),
 		},
 	}
 
+	// Look for plugin in the plugin catalog
+	pluginRunner, err := sysView.LookupPlugin(ctx, "test-plugin", consts.PluginTypeSecrets)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	// this is a dummy plugin that hasn't really been loaded yet
-	orig, err := plugin.NewBackend(ctx, "test-plugin", consts.PluginTypeSecrets, sysView, config, true, false)
+	orig, err := plugin.NewBackend(ctx, pluginRunner, sysView, config, true, false)
 	if err != nil {
 		t.Fatal(err)
 	}
