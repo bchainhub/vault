@@ -8,7 +8,6 @@ import (
 
 	"github.com/hashicorp/errwrap"
 	plugin "github.com/hashicorp/go-plugin"
-	"github.com/hashicorp/vault/sdk/helper/consts"
 	"github.com/hashicorp/vault/sdk/helper/pluginutil"
 	"github.com/hashicorp/vault/sdk/logical"
 )
@@ -34,14 +33,10 @@ func (b *BackendPluginClient) Cleanup(ctx context.Context) {
 // external plugins, or a concrete implementation of the backend if it is a builtin backend.
 // The backend is returned as a logical.Backend interface. The isMetadataMode param determines whether
 // the plugin should run in metadata mode.
-func NewBackend(ctx context.Context, pluginName string, pluginType consts.PluginType, sys pluginutil.LookRunnerUtil, conf *logical.BackendConfig, isMetadataMode bool, autoMTLS bool) (logical.Backend, error) {
-	// Look for plugin in the plugin catalog
-	pluginRunner, err := sys.LookupPlugin(ctx, pluginName, pluginType)
-	if err != nil {
-		return nil, err
-	}
-
+func NewBackend(ctx context.Context, pluginRunner *pluginutil.PluginRunner, sys pluginutil.LookRunnerUtil, conf *logical.BackendConfig, isMetadataMode bool, autoMTLS bool) (logical.Backend, error) {
 	var backend logical.Backend
+	var err error
+
 	if pluginRunner.Builtin {
 		// Plugin is builtin so we can retrieve an instance of the interface
 		// from the pluginRunner. Then cast it to logical.Factory.
@@ -51,7 +46,7 @@ func NewBackend(ctx context.Context, pluginName string, pluginType consts.Plugin
 		}
 
 		if factory, ok := rawFactory.(logical.Factory); !ok {
-			return nil, fmt.Errorf("unsupported backend type: %q", pluginName)
+			return nil, fmt.Errorf("unsupported backend type: %q", pluginRunner.Name)
 		} else {
 			if backend, err = factory(ctx, conf); err != nil {
 				return nil, err
@@ -59,9 +54,9 @@ func NewBackend(ctx context.Context, pluginName string, pluginType consts.Plugin
 		}
 	} else {
 		config := pluginutil.PluginClientConfig{
-			Name:           pluginName,
-			PluginType:     pluginType,
-			Logger:         conf.Logger.Named(pluginName),
+			Name:           pluginRunner.Name,
+			PluginType:     pluginRunner.Type,
+			Logger:         conf.Logger.Named(pluginRunner.Name),
 			IsMetadataMode: isMetadataMode,
 			AutoMTLS:       autoMTLS,
 			Wrapper:        sys,

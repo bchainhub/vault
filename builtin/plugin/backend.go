@@ -59,13 +59,13 @@ func Backend(ctx context.Context, conf *logical.BackendConfig) (*PluginBackend, 
 
 	merr := &multierror.Error{}
 	// NewBackend with isMetadataMode set to false
-	raw, err := bplugin.NewBackend(ctx, name, pluginType, sys, conf, false, true)
+	raw, err := bplugin.NewBackend(ctx, pluginRunner, sys, conf, false, true)
 	if err == nil && !pluginRunner.Builtin {
 		b.autoMTLSSupported = true
 	} else {
 		merr = multierror.Append(merr, err)
 		// NewBackend with isMetadataMode set to true
-		raw, err = bplugin.NewBackend(ctx, name, pluginType, sys, conf, true, false)
+		raw, err = bplugin.NewBackend(ctx, pluginRunner, sys, conf, true, false)
 		if err != nil {
 			merr = multierror.Append(merr, err)
 			return nil, merr
@@ -119,10 +119,17 @@ func (b *PluginBackend) startBackend(ctx context.Context, storage logical.Storag
 		return err
 	}
 
+	sys := b.config.System
+	// Look for plugin in the plugin catalog
+	pluginRunner, err := sys.LookupPlugin(ctx, pluginName, pluginType)
+	if err != nil {
+		return err
+	}
+
 	// Ensure proper cleanup of the backend (i.e. call client.Kill())
 	b.Backend.Cleanup(ctx)
 
-	nb, err := bplugin.NewBackend(ctx, pluginName, pluginType, b.config.System, b.config, false, b.autoMTLSSupported)
+	nb, err := bplugin.NewBackend(ctx, pluginRunner, sys, b.config, false, b.autoMTLSSupported)
 	if err != nil {
 		return err
 	}
