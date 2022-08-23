@@ -73,6 +73,10 @@ func (c *Core) enableCredential(ctx context.Context, entry *MountEntry) error {
 
 // enableCredential is used to enable a new credential backend
 func (c *Core) enableCredentialInternal(ctx context.Context, entry *MountEntry, updateStorage bool) error {
+	// Detect and handle deprecated auth methods
+	if err := c.HandleDeprecatedMountEntry(ctx, entry, consts.PluginTypeCredential); err != nil {
+		return err
+	}
 	// Ensure we end the path in a slash
 	if !strings.HasSuffix(entry.Path, "/") {
 		entry.Path += "/"

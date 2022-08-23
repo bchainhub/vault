@@ -457,6 +457,12 @@ func (c *Core) decodeMountTable(ctx context.Context, raw []byte) (*MountTable, e
 			continue
 		}
 
+		// Immediately shutdown the core if deprecated mounts are detected
+		if err := c.HandleDeprecatedMountEntry(ctx, entry, consts.PluginTypeUnknown); err != nil {
+			c.logger.Error("shutting down core", "error", err)
+			c.Shutdown()
+		}
+
 		entry.namespace = ns
 		mountEntries = append(mountEntries, entry)
 	}
@@ -655,6 +661,54 @@ func (c *Core) mountInternal(ctx context.Context, entry *MountEntry, updateStora
 
 	if c.logger.IsInfo() {
 		c.logger.Info("successful mount", "namespace", entry.Namespace().Path, "path", entry.Path, "type", entry.Type)
+	}
+	return nil
+}
+
+// HandleDeprecatedMountEntry handles the Deprecation Status of the specified
+// mount entry's builtin engine as follows:
+//
+// * Supported - do nothing
+// * Deprecated - log a warning about builtin deprecation
+// * PendingRemoval - log an error about builtin deprecation and return an error
+// * Removed - log an error about builtin deprecation and return an error
+func (c *Core) HandleDeprecatedMountEntry(ctx context.Context, entry *MountEntry, pluginType consts.PluginType) error {
+	if c.builtinRegistry == nil || entry == nil {
+		return nil
+	}
+
+	// Allow type to be determined from mount entry when not otherwise specified
+	if pluginType == consts.PluginTypeUnknown {
+		var err error
+		if pluginType, err = consts.ParsePluginType(entry.Table); err != nil {
+			return nil
+		}
+	}
+
+	// Handle aliases
+	t := entry.Type
+	if alias, ok := mountAliases[t]; ok {
+		t = alias
+	}
+
+	status, ok := c.builtinRegistry.DeprecationStatus(t, pluginType)
+	if ok {
+		// Deprecation sublogger with some identifying information
+		deprecatedMountMsg := fmt.Sprintf("mount entry associated with %s builtin", status)
+		dl := c.logger.With("name", t, "type", pluginType, "status", status)
+
+		switch status {
+		case consts.Deprecated:
+			dl.Warn("mounting deprecated builtin")
+
+		case consts.PendingRemoval:
+			dl.Error(deprecatedMountMsg)
+			return fmt.Errorf("could not mount %q: %s", t, deprecatedMountMsg)
+
+		case consts.Removed:
+			dl.Error(deprecatedMountMsg)
+			return fmt.Errorf("could not mount %q: %s", t, deprecatedMountMsg)
+		}
 	}
 	return nil
 }
@@ -1415,6 +1469,11 @@ func (c *Core) newLogicalBackend(ctx context.Context, entry *MountEntry, sysView
 	t := entry.Type
 	if alias, ok := mountAliases[t]; ok {
 		t = alias
+	}
+
+	// Detect and handle deprecated secrets engines
+	if err := c.HandleDeprecatedMountEntry(ctx, entry, consts.PluginTypeSecrets); err != nil {
+		return nil, err
 	}
 
 	f, ok := c.logicalBackends[t]
