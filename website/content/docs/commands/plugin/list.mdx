@@ -9,22 +9,28 @@ description: The "plugin list" command lists all available plugins in the plugin
 The `plugin list` command lists all available plugins in the plugin catalog.
 It can be used alone or with a type such as "auth", "database", or "secret".
 
+## Deprecation Status Column
+
+As of 1.12, all builtin plugins will have an associated Deprecation
+Status. This status will be reflected in the `Deprecation Status` column, seen
+below. All non-builtin plugins will show a `Deprecation Status` of "n/a".
+
 ## Examples
 
 List all available plugins in the catalog.
 
 ```shell-session
 $ vault plugin list
-
-Plugins
--------
-my-custom-plugin
+Name                             Type        Deprecation Status
+----                             ----        ------------------
+alicloud                         auth        supported
+app-id                           auth        pending removal
 # ...
 
 $ vault plugin list database
-Plugins
--------
-cassandra-database-plugin
+Name                             Type        Deprecation Status
+----                             ----        ------------------
+cassandra-database-plugin        database    supported
 # ...
 ```
 

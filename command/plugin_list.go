@@ -2,10 +2,10 @@ package command
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/hashicorp/vault/api"
+	"github.com/hashicorp/vault/helper/builtinplugins"
 	"github.com/hashicorp/vault/sdk/helper/consts"
 	"github.com/mitchellh/cli"
 	"github.com/posener/complete"
@@ -105,19 +105,7 @@ func (c *PluginListCommand) Run(args []string) int {
 
 	switch Format(c.UI) {
 	case "table":
-		var flattenedNames []string
-		namesAdded := make(map[string]bool)
-		for _, names := range resp.PluginsByType {
-			for _, name := range names {
-				if ok := namesAdded[name]; !ok {
-					flattenedNames = append(flattenedNames, name)
-					namesAdded[name] = true
-				}
-			}
-			sort.Strings(flattenedNames)
-		}
-		list := append([]string{"Plugins"}, flattenedNames...)
-		c.UI.Output(tableOutput(list, nil))
+		c.UI.Output(tableOutput(c.simpleResponse(resp.PluginsByType), nil))
 		return 0
 	default:
 		res := make(map[string]interface{})
@@ -126,4 +114,16 @@ func (c *PluginListCommand) Run(args []string) int {
 		}
 		return OutputData(c.UI, res)
 	}
+}
+
+func (c *PluginListCommand) simpleResponse(plugins map[consts.PluginType][]string) []string {
+	out := []string{"Name | Type | Deprecation Status"}
+	for pluginType, names := range plugins {
+		for _, name := range names {
+			status, _ := builtinplugins.Registry.DeprecationStatus(name, pluginType)
+			out = append(out, fmt.Sprintf("%s | %s | %s", name, pluginType, status.String()))
+		}
+	}
+
+	return out
 }

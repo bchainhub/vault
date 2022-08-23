@@ -36,7 +36,7 @@ func TestPluginListCommand_Run(t *testing.T) {
 		{
 			"lists",
 			nil,
-			"Plugins",
+			"Deprecation Status",
 			0,
 		},
 	}
