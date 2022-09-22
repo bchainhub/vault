@@ -311,10 +311,10 @@ func (c *Core) disableCredentialInternal(ctx context.Context, path string, updat
 		}
 	}
 
-	if backend != nil {
-		// Call cleanup function if it exists
-		backend.Cleanup(ctx)
-	}
+	//if backend != nil {
+	//	// Call cleanup function if it exists
+	//	backend.Cleanup(ctx)
+	//}
 
 	viewPath := entry.ViewPath()
 	switch {

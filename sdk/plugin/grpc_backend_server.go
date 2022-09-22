@@ -230,17 +230,19 @@ func (b *backendGRPCPluginServer) Cleanup(ctx context.Context, _ *pb.Empty) (*pb
 
 	backend.Cleanup(ctx)
 
-	// Close rpc clients
-	brokeredClient.Close()
-
 	if b.multiplexingSupport {
 		id, err := pluginutil.GetMultiplexIDFromContext(ctx)
 		if err != nil {
 			return nil, err
 		}
 		delete(b.instances, id)
+
+		if len(b.instances) == 0 {
+			brokeredClient.Close()
+		}
 	} else if _, ok := b.instances[singleImplementationID]; ok {
 		delete(b.instances, singleImplementationID)
+		brokeredClient.Close()
 	}
 
 	return &pb.Empty{}, nil
