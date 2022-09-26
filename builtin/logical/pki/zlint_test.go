@@ -11,7 +11,7 @@ import (
 	"github.com/hashicorp/vault/helper/testhelpers/docker"
 )
 
-var runner *docker.Runner
+var zRunner *docker.Runner
 var buildZLintOnce sync.Once
 
 func buildZLintContainer(t *testing.T) {
@@ -27,7 +27,7 @@ RUN go install github.com/zmap/zlint/v3/cmd/zlint@latest
 	imageTag := "latest"
 
 	var err error
-	runner, err = docker.NewServiceRunner(docker.RunOptions{
+	zRunner, err = docker.NewServiceRunner(docker.RunOptions{
 		ImageRepo:     imageName,
 		ImageTag:      imageTag,
 		ContainerName: "pki_zlint",
@@ -45,7 +45,7 @@ RUN go install github.com/zmap/zlint/v3/cmd/zlint@latest
 	}
 
 	ctx := context.Background()
-	output, err := runner.BuildImage(ctx, containerfile, bCtx,
+	output, err := zRunner.BuildImage(ctx, containerfile, bCtx,
 		docker.BuildRemove(true), docker.BuildForceRemove(true),
 		docker.BuildPullParent(true),
 		docker.BuildTags([]string{imageName + ":" + imageTag}))
@@ -65,7 +65,7 @@ func RunZLintContainer(t *testing.T, certificate string) []byte {
 	// container so we can run commands in it. We'd ideally like to skip this
 	// step and only build a new image, but the zlint output would be
 	// intermingled with container build stages, so its not that useful.
-	ctr, _, _, err := runner.Start(ctx, true, false)
+	ctr, _, _, err := zRunner.Start(ctx, true, false)
 	if err != nil {
 		t.Fatalf("Could not start golang container for zlint: %s", err)
 	}
@@ -73,13 +73,13 @@ func RunZLintContainer(t *testing.T, certificate string) []byte {
 	// Copy the cert into the newly running container.
 	certCtx := docker.NewBuildContext()
 	certCtx["cert.pem"] = docker.PathContentsFromBytes([]byte(certificate))
-	if err := runner.CopyTo(ctr.ID, "/go/", certCtx); err != nil {
+	if err := zRunner.CopyTo(ctr.ID, "/go/", certCtx); err != nil {
 		t.Fatalf("Could not copy certificate into container: %v", err)
 	}
 
 	// Run the zlint command and save the output.
 	cmd := []string{"/go/bin/zlint", "/go/cert.pem"}
-	stdout, stderr, retcode, err := runner.RunCmdWithOutput(ctx, ctr.ID, cmd)
+	stdout, stderr, retcode, err := zRunner.RunCmdWithOutput(ctx, ctr.ID, cmd)
 	if err != nil {
 		t.Fatalf("Could not run command in container: %v", err)
 	}
@@ -94,7 +94,7 @@ func RunZLintContainer(t *testing.T, certificate string) []byte {
 	}
 
 	// Clean up after ourselves.
-	if err := runner.Stop(context.Background(), ctr.ID); err != nil {
+	if err := zRunner.Stop(context.Background(), ctr.ID); err != nil {
 		t.Fatalf("failed to stop container: %v", err)
 	}
 
