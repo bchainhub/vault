@@ -63,6 +63,15 @@ func parseCert(t *testing.T, pemCert string) *x509.Certificate {
 	return cert
 }
 
+func parseKey(t *testing.T, pemKey string) crypto.Signer {
+    block, _ := pem.Decode([]byte(pemKey))
+    require.NotNil(t, block, "failed to decode PEM block")
+
+	key, _, err := certutil.ParseDERKey(block.Bytes)
+    require.NoError(t, err)
+    return key
+}
+
 func requireMatchingPublicKeys(t *testing.T, cert *x509.Certificate, key crypto.PublicKey) {
 	certPubKey := cert.PublicKey
 	areEqual, err := certutil.ComparePublicKeysAndType(certPubKey, key)
