@@ -269,6 +269,52 @@ func CheckWithClients(t *testing.T, network string, address string, url string, 
 	}
 }
 
+func CheckWithGo(t *testing.T, rootCert string, clientCert string, clientChain []string, clientKey string, url string, expected string, shouldFail bool) {
+	// Ensure we can connect with Go.
+	pool := x509.NewCertPool()
+	pool.AppendCertsFromPEM([]byte(rootCert))
+	tlsConfig := &tls.Config{
+		RootCAs: pool,
+	}
+
+	if clientCert != "" {
+		var clientTLSCert tls.Certificate
+		clientTLSCert.Certificate = append(clientTLSCert.Certificate, parseCert(t, clientCert).Raw)
+		clientTLSCert.PrivateKey = parseKey(t, clientKey)
+		for _, cert := range clientChain {
+			clientTLSCert.Certificate = append(clientTLSCert.Certificate, parseCert(t, cert).Raw)
+		}
+
+		tlsConfig.Certificates = append(tlsConfig.Certificates, clientTLSCert)
+	}
+
+	transport := &http.Transport{TLSClientConfig: tlsConfig}
+	client := &http.Client{Transport: transport}
+	clientResp, err := client.Get(url)
+	if err != nil {
+		if shouldFail {
+			return
+		}
+
+		t.Fatalf("failed to fetch url (%v): %v", url, err)
+	} else if shouldFail {
+		if clientResp.StatusCode == 200 {
+			t.Fatalf("expected failure to fetch url (%v): got response: %v", url, clientResp)
+		}
+
+		return
+	}
+
+	defer clientResp.Body.Close()
+	body, err := io.ReadAll(clientResp.Body)
+	if err != nil {
+		t.Fatalf("failed to get read response body: %v", err)
+	}
+	if !strings.Contains(string(body), expected) {
+		t.Fatalf("expected body to contain (%v) but was:\n%v", expected, string(body))
+	}
+}
+
 func RunNginxRootTest(t *testing.T, caKeyType string, caKeyBits int, caUsePSS bool, roleKeyType string, roleKeyBits int, roleUsePSS bool) {
 	b, s := createBackendWithStorage(t)
 
@@ -344,13 +390,7 @@ func RunNginxRootTest(t *testing.T, caKeyType string, caKeyBits int, caUsePSS bo
 	clientKey := resp.Data["private_key"].(string) + "\n"
 	clientFullChain := clientCert + "\n" + resp.Data["issuing_ca"].(string) + "\n"
 	clientTrustChain := resp.Data["issuing_ca"].(string) + "\n" + rootCert + "\n"
-
-	var clientTLSCert tls.Certificate
-	clientTLSCert.Certificate = append(clientTLSCert.Certificate, parseCert(t, clientCert).Raw)
-	clientTLSCert.PrivateKey = parseKey(t, clientKey)
-	for _, cert := range resp.Data["ca_chain"].([]string) {
-		clientTLSCert.Certificate = append(clientTLSCert.Certificate, parseCert(t, cert).Raw)
-	}
+	clientCAChain := resp.Data["ca_chain"].([]string)
 
 	cleanup, host, port, networkName, networkAddr, networkPort := buildNginxContainer(t, rootCert, fullChain, leafPrivateKey)
 	defer cleanup()
@@ -363,50 +403,9 @@ func RunNginxRootTest(t *testing.T, caKeyType string, caKeyBits int, caUsePSS bo
 	containerProtectedURL := containerBase + "/protected.html"
 
 	// Ensure we can connect with Go.
-	pool := x509.NewCertPool()
-	pool.AppendCertsFromPEM([]byte(rootCert))
-	tlsConfig := &tls.Config{
-		RootCAs: pool,
-	}
-	transport := &http.Transport{TLSClientConfig: tlsConfig}
-	client := &http.Client{Transport: transport}
-	clientResp, err := client.Get(localURL)
-	if err != nil {
-		t.Fatalf("failed to fetch url (%v): %v", localURL, err)
-	}
-	defer clientResp.Body.Close()
-	body, err := io.ReadAll(clientResp.Body)
-	if err != nil {
-		t.Fatalf("failed to get read response body: %v", err)
-	}
-	if !strings.Contains(string(body), unprotectedFile) {
-		t.Fatalf("expected body to contain (%v) but was:\n%v", unprotectedFile, string(body))
-	}
-
-	// Should fail to fetch without client auth info.
-	clientResp, err = client.Get(localProtectedURL)
-	if err == nil {
-		if clientResp.StatusCode != 403 {
-			t.Fatalf("expected failure to fetch but got valid response: %v", clientResp)
-		}
-
-		defer clientResp.Body.Close()
-	}
-
-	// Setting up a client cert should fix this.
-	tlsConfig.Certificates = append(tlsConfig.Certificates, clientTLSCert)
-	clientResp, err = client.Get(localProtectedURL)
-	if err != nil {
-		t.Fatalf("failed to fetch url (%v): %v", localURL, err)
-	}
-	defer clientResp.Body.Close()
-	body, err = io.ReadAll(clientResp.Body)
-	if err != nil {
-		t.Fatalf("failed to get read response body: %v", err)
-	}
-	if !strings.Contains(string(body), protectedFile) {
-		t.Fatalf("expected body to contain (%v) but was:\n%v", protectedFile, string(body))
-	}
+	CheckWithGo(t, rootCert, "", nil, "", localURL, unprotectedFile, false)
+	CheckWithGo(t, rootCert, "", nil, "", localProtectedURL, "THIS-TEST-SHOULD-FAIL", true)
+	CheckWithGo(t, rootCert, clientCert, clientCAChain, clientKey, localProtectedURL, protectedFile, false)
 
 	// Ensure we can connect with wget/curl.
 	CheckWithClients(t, networkName, networkAddr, containerURL, rootCert, "", "")
