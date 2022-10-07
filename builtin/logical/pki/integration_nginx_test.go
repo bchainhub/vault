@@ -173,7 +173,7 @@ func buildWgetCurlContainer(t *testing.T, network string) {
 	containerfile := `
 FROM ubuntu:latest
 
-RUN apt update && DEBIAN_FRONTEND="noninteractive" apt install -y curl wget
+RUN apt update && DEBIAN_FRONTEND="noninteractive" apt install -y curl wget wget2
 `
 
 	bCtx := docker.NewBuildContext()
@@ -228,7 +228,7 @@ func CheckWithClients(t *testing.T, network string, address string, url string, 
 	ctx := context.Background()
 	ctr, _, _, err := cwRunner.Start(ctx, true, false)
 	if err != nil {
-		t.Fatalf("Could not start golang container for zlint: %s", err)
+		t.Fatalf("Could not start golang container for wget/curl checks: %s", err)
 	}
 
 	// Commands to run after potentially writing the certificate. We
@@ -271,6 +271,66 @@ func CheckWithClients(t *testing.T, network string, address string, url string, 
 		if retcode != 0 {
 			t.Logf("Got stdout from command (%v):\n%v\n", cmd, string(stdout))
 			t.Fatalf("Got unexpected non-zero retcode from command (%v): %v\n", cmd, retcode)
+		}
+	}
+}
+
+func CheckDeltaCRL(t *testing.T, network string, address string, url string, rootCert string, crls string) {
+	// We assume the network doesn't change once assigned.
+	buildClientContainerOnce.Do(func() {
+		buildWgetCurlContainer(t, network)
+		builtNetwork = network
+	})
+
+	if builtNetwork != network {
+		t.Fatalf("failed assumption check: different built network (%v) vs run network (%v); must've changed while running tests", builtNetwork, network)
+	}
+
+	// Start our service with a random name to not conflict with other
+	// threads.
+	ctx := context.Background()
+	ctr, _, _, err := cwRunner.Start(ctx, true, false)
+	if err != nil {
+		t.Fatalf("Could not start golang container for wget2 delta CRL checks: %s", err)
+	}
+
+	// Commands to run after potentially writing the certificate. We
+	// might augment these if the certificate exists.
+	//
+	// We manually add the expected hostname to the local hosts file
+	// to avoid resolving it over the network and instead resolving it
+	// to this other container we just started (potentially in parallel
+	// with other containers).
+	hostPrimeCmd := []string{"sh", "-c", "echo '" + address + "	" + uniqueHostname + "' >> /etc/hosts"}
+	wgetCmd := []string{"wget2", "--verbose", "--ca-certificate=/root.pem", "--crl-file=/crls.pem", url}
+
+	certCtx := docker.NewBuildContext()
+	certCtx["root.pem"] = docker.PathContentsFromString(rootCert)
+	certCtx["crls.pem"] = docker.PathContentsFromString(crls)
+	if err := cwRunner.CopyTo(ctr.ID, "/", certCtx); err != nil {
+		t.Fatalf("Could not copy certificate and key into container: %v", err)
+	}
+
+	for index, cmd := range [][]string{hostPrimeCmd, wgetCmd} {
+		t.Logf("Running client connection command: %v", cmd)
+
+		stdout, stderr, retcode, err := cwRunner.RunCmdWithOutput(ctx, ctr.ID, cmd)
+		if err != nil {
+			t.Fatalf("Could not run command (%v) in container: %v", cmd, err)
+		}
+
+		if len(stderr) != 0 {
+			t.Logf("Got stderr from command (%v):\n%v\n", cmd, string(stderr))
+		}
+
+		if retcode != 0 && index == 0 {
+			t.Logf("Got stdout from command (%v):\n%v\n", cmd, string(stdout))
+			t.Fatalf("Got unexpected non-zero retcode from command (%v): %v\n", cmd, retcode)
+		}
+
+		if retcode == 0 && index == 1 {
+			t.Logf("Got stdout from command (%v):\n%v\n", cmd, string(stdout))
+			t.Fatalf("Got unexpected zero retcode from command; wanted this to fail (%v): %v\n", cmd, retcode)
 		}
 	}
 }
@@ -365,8 +425,9 @@ func RunNginxRootTest(t *testing.T, caKeyType string, caKeyBits int, caUsePSS bo
 		"csr":          resp.Data["csr"],
 	})
 	requireSuccessNonNilResponse(t, resp, err, "failed to sign intermediate csr")
+	intCert := resp.Data["certificate"].(string)
 	resp, err = CBWrite(b, s, "issuers/import/bundle", map[string]interface{}{
-		"pem_bundle": resp.Data["certificate"],
+		"pem_bundle": intCert,
 	})
 	requireSuccessNonNilResponse(t, resp, err, "failed to sign intermediate csr")
 	_, err = CBWrite(b, s, "config/issuers", map[string]interface{}{
@@ -456,7 +517,6 @@ func RunNginxRootTest(t *testing.T, caKeyType string, caKeyBits int, caUsePSS bo
 	deltaCRL := resp.Data["crl"].(string) + "\n"
 
 	crls := rootCRL + intCRL + deltaCRL
-	t.Logf("Got CRLs:\n\n%v\n\n", crls)
 
 	cleanup, host, port, networkName, networkAddr, networkPort := buildNginxContainer(t, rootCert, crls, fullChain, leafPrivateKey)
 	defer cleanup()
@@ -480,6 +540,22 @@ func RunNginxRootTest(t *testing.T, caKeyType string, caKeyBits int, caUsePSS bo
 	// Ensure we can connect with wget/curl.
 	CheckWithClients(t, networkName, networkAddr, containerURL, rootCert, "", "")
 	CheckWithClients(t, networkName, networkAddr, containerProtectedURL, clientTrustChain, clientFullChain, clientKey)
+
+	// Ensure OpenSSL will validate the delta CRL by revoking our server leaf
+	// and then using it with wget2. This will land on the intermediate's
+	// Delta CRL.
+	_, err = CBWrite(b, s, "revoke", map[string]interface{}{
+		"certificate": leafCert,
+	})
+	require.NoError(t, err)
+	_, err = CBRead(b, s, "crl/rotate-delta")
+	require.NoError(t, err)
+	resp, err = CBRead(b, s, "issuer/default/crl/delta")
+	require.NoError(t, err)
+	deltaCRL = resp.Data["crl"].(string) + "\n"
+	crls = rootCRL + intCRL + deltaCRL
+
+	CheckDeltaCRL(t, networkName, networkAddr, containerURL, rootCert, crls)
 }
 
 func Test_NginxRSAPure(t *testing.T) {
