@@ -1,7 +1,6 @@
 package command
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -10,7 +9,6 @@ import (
 
 	kvbuilder "github.com/hashicorp/go-secure-stdlib/kv-builder"
 	"github.com/hashicorp/vault/api"
-	"github.com/kr/text"
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/mitchellh/mapstructure"
 	"github.com/pkg/errors"
@@ -210,22 +208,6 @@ func expandPath(s string) string {
 	return e
 }
 
-// wrapAtLengthWithPadding wraps the given text at the maxLineLength, taking
-// into account any provided left padding.
-func wrapAtLengthWithPadding(s string, pad int) string {
-	wrapped := text.Wrap(s, maxLineLength-pad)
-	lines := strings.Split(wrapped, "\n")
-	for i, line := range lines {
-		lines[i] = strings.Repeat(" ", pad) + line
-	}
-	return strings.Join(lines, "\n")
-}
-
-// wrapAtLength wraps the given text to maxLineLength.
-func wrapAtLength(s string) string {
-	return wrapAtLengthWithPadding(s, 0)
-}
-
 // ttlToAPI converts a user-supplied ttl into an API-compatible string. If
 // the TTL is 0, this returns the empty string. If the TTL is negative, this
 // returns "system" to indicate to use the system values. Otherwise, the
@@ -240,40 +222,6 @@ func ttlToAPI(d time.Duration) string {
 	}
 
 	return d.String()
-}
-
-// humanDuration prints the time duration without those pesky zeros.
-func humanDuration(d time.Duration) string {
-	if d == 0 {
-		return "0s"
-	}
-
-	s := d.String()
-	if strings.HasSuffix(s, "m0s") {
-		s = s[:len(s)-2]
-	}
-	if idx := strings.Index(s, "h0m"); idx > 0 {
-		s = s[:idx+1] + s[idx+3:]
-	}
-	return s
-}
-
-// humanDurationInt prints the given int as if it were a time.Duration  number
-// of seconds.
-func humanDurationInt(i interface{}) interface{} {
-	switch i := i.(type) {
-	case int:
-		return humanDuration(time.Duration(i) * time.Second)
-	case int64:
-		return humanDuration(time.Duration(i) * time.Second)
-	case json.Number:
-		if i, err := i.Int64(); err == nil {
-			return humanDuration(time.Duration(i) * time.Second)
-		}
-	}
-
-	// If we don't know what type it is, just return the original value
-	return i
 }
 
 // parseFlagFile accepts a flag value returns the contets of that value. If the

@@ -1,4 +1,4 @@
-package command
+package format
 
 import (
 	"bytes"
@@ -12,6 +12,7 @@ import (
 
 	"github.com/ghodss/yaml"
 	"github.com/hashicorp/vault/api"
+	"github.com/kr/text"
 	"github.com/mitchellh/cli"
 	"github.com/ryanuber/columnize"
 )
@@ -20,6 +21,12 @@ const (
 	// hopeDelim is the delimiter to use when splitting columns. We call it a
 	// hopeDelim because we hope that it's never contained in a secret.
 	hopeDelim = "♨"
+
+	// maxLineLength is the maximum width of any line.
+	maxLineLength int = 78
+
+	// EnvVaultFormat is the output format
+	EnvVaultFormat = `VAULT_FORMAT`
 )
 
 type FormatOptions struct {
@@ -499,7 +506,7 @@ func (t TableFormatter) printWarnings(ui cli.Ui, secret *api.Secret) {
 	if secret != nil && len(secret.Warnings) > 0 {
 		ui.Warn("WARNING! The following warnings were returned from Vault:\n")
 		for _, warning := range secret.Warnings {
-			ui.Warn(wrapAtLengthWithPadding(fmt.Sprintf("* %s", warning), 2))
+			ui.Warn(WrapAtLengthWithPadding(fmt.Sprintf("* %s", warning), 2))
 			ui.Warn("")
 		}
 	}
@@ -692,4 +699,54 @@ type SealStatusOutput struct {
 	LastWAL                  uint64    `json:"last_wal,omitempty"`
 	RaftCommittedIndex       uint64    `json:"raft_committed_index,omitempty"`
 	RaftAppliedIndex         uint64    `json:"raft_applied_index,omitempty"`
+}
+
+// humanDuration prints the time duration without those pesky zeros.
+func humanDuration(d time.Duration) string {
+	if d == 0 {
+		return "0s"
+	}
+
+	s := d.String()
+	if strings.HasSuffix(s, "m0s") {
+		s = s[:len(s)-2]
+	}
+	if idx := strings.Index(s, "h0m"); idx > 0 {
+		s = s[:idx+1] + s[idx+3:]
+	}
+	return s
+}
+
+// humanDurationInt prints the given int as if it were a time.Duration  number
+// of seconds.
+func humanDurationInt(i interface{}) interface{} {
+	switch i := i.(type) {
+	case int:
+		return humanDuration(time.Duration(i) * time.Second)
+	case int64:
+		return humanDuration(time.Duration(i) * time.Second)
+	case json.Number:
+		if i, err := i.Int64(); err == nil {
+			return humanDuration(time.Duration(i) * time.Second)
+		}
+	}
+
+	// If we don't know what type it is, just return the original value
+	return i
+}
+
+// WrapAtLengthWithPadding wraps the given text at the maxLineLength, taking
+// into account any provided left padding.
+func WrapAtLengthWithPadding(s string, pad int) string {
+	wrapped := text.Wrap(s, maxLineLength-pad)
+	lines := strings.Split(wrapped, "\n")
+	for i, line := range lines {
+		lines[i] = strings.Repeat(" ", pad) + line
+	}
+	return strings.Join(lines, "\n")
+}
+
+// wrapAtLength wraps the given text to maxLineLength.
+func WrapAtLength(s string) string {
+	return WrapAtLengthWithPadding(s, 0)
 }

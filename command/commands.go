@@ -73,8 +73,6 @@ import (
 const (
 	// EnvVaultCLINoColor is an env var that toggles colored UI output.
 	EnvVaultCLINoColor = `VAULT_CLI_NO_COLOR`
-	// EnvVaultFormat is the output format
-	EnvVaultFormat = `VAULT_FORMAT`
 	// EnvVaultLicense is an env var used in Vault Enterprise to provide a license blob
 	EnvVaultLicense = "VAULT_LICENSE"
 	// EnvVaultLicensePath is an env var used in Vault Enterprise to provide a

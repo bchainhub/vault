@@ -13,6 +13,7 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/hashicorp/vault/api"
+	formatting "github.com/hashicorp/vault/command/internal/format"
 	"github.com/hashicorp/vault/command/token"
 	colorable "github.com/mattn/go-colorable"
 	"github.com/mitchellh/cli"
@@ -93,7 +94,7 @@ func setupEnv(args []string) (retArgs []string, format string, detailed bool, ou
 		}
 	}
 
-	envVaultFormat := os.Getenv(EnvVaultFormat)
+	envVaultFormat := os.Getenv(formatting.EnvVaultFormat)
 	// If we did not parse a value, fetch the env var
 	if format == "" && envVaultFormat != "" {
 		format = envVaultFormat
@@ -212,7 +213,7 @@ func RunCustom(args []string, runOpts *RunOptions) int {
 		format: format,
 	}
 
-	if _, ok := Formatters[format]; !ok {
+	if _, ok := formatting.Formatters[format]; !ok {
 		ui.Error(fmt.Sprintf("Invalid output format: %s", format))
 		return 1
 	}

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/vault/api"
+	"github.com/hashicorp/vault/command/internal/format"
 	"github.com/hashicorp/vault/command/token"
 	"github.com/hashicorp/vault/helper/namespace"
 	"github.com/hashicorp/vault/sdk/logical"
@@ -23,9 +24,6 @@ import (
 )
 
 const (
-	// maxLineLength is the maximum width of any line.
-	maxLineLength int = 78
-
 	// notSetValue is a flag value for a not-set value
 	notSetValue = "(not set)"
 )
@@ -695,6 +693,6 @@ func printFlagDetail(w io.Writer, f *flag.Flag) {
 	}
 
 	usage := reRemoveWhitespace.ReplaceAllString(f.Usage, " ")
-	indented := wrapAtLengthWithPadding(usage, 6)
+	indented := format.WrapAtLengthWithPadding(usage, 6)
 	fmt.Fprintf(w, "%s\n\n", indented)
 }
