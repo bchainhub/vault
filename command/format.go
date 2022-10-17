@@ -70,6 +70,7 @@ var Formatters = map[string]Formatter{
 	"yaml":   YamlFormatter{},
 	"yml":    YamlFormatter{},
 	"pretty": PrettyFormatter{},
+	//"expanded": ,
 }
 
 func Format(ui cli.Ui) string {
@@ -284,21 +285,21 @@ func (t TableFormatter) Format(data interface{}) ([]byte, error) {
 func (t TableFormatter) Output(ui cli.Ui, secret *api.Secret, data interface{}) error {
 	switch data := data.(type) {
 	case *api.Secret:
-		return t.OutputSecret(ui, secret)
+		return t.outputSecret(ui, secret)
 	case []interface{}:
-		return t.OutputList(ui, secret, data)
+		return t.outputList(ui, secret, data)
 	case []string:
-		return t.OutputList(ui, nil, data)
+		return t.outputList(ui, nil, data)
 	case map[string]interface{}:
-		return t.OutputMap(ui, data)
+		return t.outputMap(ui, data)
 	case SealStatusOutput:
-		return t.OutputSealStatusStruct(ui, nil, data)
+		return t.outputSealStatusStruct(ui, nil, data)
 	default:
 		return errors.New("cannot use the table formatter for this type")
 	}
 }
 
-func (t TableFormatter) OutputSealStatusStruct(ui cli.Ui, secret *api.Secret, data interface{}) error {
+func (t TableFormatter) outputSealStatusStruct(ui cli.Ui, secret *api.Secret, data interface{}) error {
 	var status SealStatusOutput = data.(SealStatusOutput)
 	var sealPrefix string
 	if status.RecoverySeal {
@@ -387,7 +388,7 @@ func (t TableFormatter) OutputSealStatusStruct(ui cli.Ui, secret *api.Secret, da
 	return nil
 }
 
-func (t TableFormatter) OutputList(ui cli.Ui, secret *api.Secret, data interface{}) error {
+func (t TableFormatter) outputList(ui cli.Ui, secret *api.Secret, data interface{}) error {
 	t.printWarnings(ui, secret)
 
 	// Determine if we have additional information from a ListResponseWithInfo endpoint.
@@ -504,7 +505,7 @@ func (t TableFormatter) printWarnings(ui cli.Ui, secret *api.Secret) {
 	}
 }
 
-func (t TableFormatter) OutputSecret(ui cli.Ui, secret *api.Secret) error {
+func (t TableFormatter) outputSecret(ui cli.Ui, secret *api.Secret) error {
 	if secret == nil {
 		return nil
 	}
@@ -599,7 +600,7 @@ func (t TableFormatter) OutputSecret(ui cli.Ui, secret *api.Secret) error {
 	return nil
 }
 
-func (t TableFormatter) OutputMap(ui cli.Ui, data map[string]interface{}) error {
+func (t TableFormatter) outputMap(ui cli.Ui, data map[string]interface{}) error {
 	out := make([]string, 0, len(data)+1)
 	if len(data) > 0 {
 		keys := make([]string, 0, len(data))
