@@ -15,12 +15,11 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/hashicorp/vault/sdk/helper/errutil"
-
 	"golang.org/x/crypto/ocsp"
 
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/helper/certutil"
+	"github.com/hashicorp/vault/sdk/helper/errutil"
 	"github.com/hashicorp/vault/sdk/logical"
 )
 
@@ -389,24 +388,6 @@ func genResponse(cfg *crlConfig, caBundle *certutil.ParsedCertBundle, info *ocsp
 	duration, err := time.ParseDuration(cfg.OcspExpiry)
 	if err != nil {
 		return nil, err
-	}
-
-	// x/crypto/ocsp lives outside of the standard library's crypto/x509 and includes
-	// ripped-off variants of many internal structures and functions. These
-	// lack support for PSS signatures altogether, so if we have revSigAlg
-	// that uses PSS, downgrade it to PKCS#1v1.5. This fixes the lack of
-	// support in x/ocsp, at the risk of OCSP requests failing due to lack
-	// of PKCS#1v1.5 (in say, PKCS#11 HSMs or GCP).
-	//
-	// Other restrictions, such as hash function selection, will still work
-	// however.
-	switch revSigAlg {
-	case x509.SHA256WithRSAPSS:
-		revSigAlg = x509.SHA256WithRSA
-	case x509.SHA384WithRSAPSS:
-		revSigAlg = x509.SHA384WithRSA
-	case x509.SHA512WithRSAPSS:
-		revSigAlg = x509.SHA512WithRSA
 	}
 
 	template := ocsp.Response{

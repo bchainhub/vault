@@ -14,9 +14,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hashicorp/vault/sdk/logical"
-	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ocsp"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/hashicorp/vault/sdk/logical"
 )
 
 // If the ocsp_disabled flag is set to true in the crl configuration make sure we always
@@ -380,10 +382,13 @@ func TestOcsp_ValidRequests(t *testing.T) {
 			{"rsa", 0, 0},
 			{"rsa", 0, 384},
 			{"rsa", 0, 512},
+			{"rsa-pss", 0, 0},
+			{"rsa-pss", 0, 384},
+			{"rsa-pss", 0, 512},
 			{"ec", 0, 0},
 			{"ec", 521, 0},
+			{"ed25519", 0, 0},
 		} {
-			// "ed25519" is not supported at the moment in x/crypto/ocsp
 			for _, requestHash := range []crypto.Hash{crypto.SHA1, crypto.SHA256, crypto.SHA384, crypto.SHA512} {
 				tests = append(tests, testArgs{
 					reqType: reqType,
@@ -510,6 +515,11 @@ func setupOcspEnv(t *testing.T, keyType string) (*backend, logical.Storage, *ocs
 }
 
 func setupOcspEnvWithCaKeyConfig(t *testing.T, keyType string, caKeyBits int, caKeySigBits int) (*backend, logical.Storage, *ocspTestEnv) {
+	usePss := false
+	if keyType == "rsa-pss" {
+		usePss = true
+		keyType = "rsa"
+	}
 	b, s := createBackendWithStorage(t)
 	var issuerCerts []*x509.Certificate
 	var leafCerts []*x509.Certificate
@@ -519,6 +529,7 @@ func setupOcspEnvWithCaKeyConfig(t *testing.T, keyType string, caKeyBits int, ca
 	for i := 0; i < 2; i++ {
 		resp, err := CBWrite(b, s, "root/generate/internal", map[string]interface{}{
 			"key_type":       keyType,
+			"use_pss":        usePss,
 			"key_bits":       caKeyBits,
 			"signature_bits": caKeySigBits,
 			"ttl":            "40h",
@@ -537,6 +548,7 @@ func setupOcspEnvWithCaKeyConfig(t *testing.T, keyType string, caKeyBits int, ca
 			"generate_lease":     false,
 			"issuer_ref":         issuerId,
 			"key_type":           keyType,
+			"use_pss":            usePss,
 		})
 		requireSuccessNilResponse(t, resp, err, "roles/test"+strconv.FormatInt(int64(i), 10))
 

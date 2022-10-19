@@ -14,6 +14,8 @@ replace github.com/hashicorp/vault/sdk => ./sdk
 
 replace go.etcd.io/etcd/client/pkg/v3 v3.5.0 => go.etcd.io/etcd/client/pkg/v3 v3.0.0-20210928084031-3df272774672
 
+replace golang.org/x/crypto => github.com/stevendpclark/crypto v0.0.0-20221019134834-ef5377c31aeb
+
 require (
 	cloud.google.com/go/monitoring v1.2.0
 	cloud.google.com/go/spanner v1.5.1
