@@ -249,6 +249,76 @@ func TestRaft_ParseAutopilotUpgradeVersion(t *testing.T) {
 	}
 }
 
+func TestRaft_ParseNonVoter(t *testing.T) {
+	p := func(s string) *string {
+		return &s
+	}
+
+	for name, tc := range map[string]struct {
+		envValue    *string
+		configValue *string
+		expected    bool
+		expectError bool
+	}{
+		"valid false":             {nil, p("false"), false, false},
+		"valid true":              {nil, p("true"), true, false},
+		"invalid empty":           {nil, p(""), false, true},
+		"invalid truthy":          {nil, p("no"), false, true},
+		"invalid":                 {nil, p("totallywrong"), false, true},
+		"valid env false":         {p("false"), nil, false, false},
+		"valid env true":          {p("true"), nil, true, false},
+		"invalid env empty":       {p(""), nil, false, true},
+		"invalid env truthy":      {p("no"), nil, false, true},
+		"invalid env":             {p("totallywrong"), nil, false, true},
+		"both set, env preferred": {p("true"), p("false"), true, false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			original, set := os.LookupEnv(EnvVaultRaftNonVoter)
+			defer func() {
+				if !set {
+					os.Unsetenv(EnvVaultRaftNonVoter)
+				} else {
+					os.Setenv(EnvVaultRaftNonVoter, original)
+				}
+			}()
+
+			if tc.envValue != nil {
+				os.Setenv(EnvVaultRaftNonVoter, *tc.envValue)
+			}
+			raftDir, err := ioutil.TempDir("", "vault-raft-")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer os.RemoveAll(raftDir)
+
+			conf := map[string]string{
+				"path":    raftDir,
+				"node_id": "abc123",
+			}
+			if tc.configValue != nil {
+				conf["non_voter"] = *tc.configValue
+			}
+
+			backend, err := NewRaftBackend(conf, hclog.NewNullLogger())
+			switch tc.expectError {
+			case true:
+				if err == nil {
+					t.Fatal("expected an error but got none")
+				}
+			case false:
+				if err != nil {
+					t.Fatalf("expected no error but got: %s", err)
+				}
+
+				raftBackend := backend.(*RaftBackend)
+				if tc.expected != raftBackend.NonVoter() {
+					t.Fatalf("expected non_voter %v but got %v", tc.expected, raftBackend.NonVoter())
+				}
+			}
+		})
+	}
+}
+
 func TestRaft_Backend_LargeKey(t *testing.T) {
 	b, dir := getRaft(t, true, true)
 	defer os.RemoveAll(dir)

@@ -43,6 +43,10 @@ const (
 
 	// EnvVaultRaftPath is used to fetch the path where Raft data is stored from the environment.
 	EnvVaultRaftPath = "VAULT_RAFT_PATH"
+
+	// EnvVaultRaftNonVoter is used to override the non_voter config option, telling Vault to join as a non-voter (i.e. read replica).
+	EnvVaultRaftNonVoter  = "VAULT_RAFT_NON_VOTER"
+	raftNonVoterConfigKey = "non_voter"
 )
 
 var getMmapFlags = func(string) int { return 0 }
@@ -171,6 +175,10 @@ type RaftBackend struct {
 
 	// redundancyZone specifies a redundancy zone for autopilot.
 	redundancyZone string
+
+	// nonVoter specifies whether the node should join the cluster as a non-voter. Non-voters get
+	// replicated to and can serve reads, but do not take part in leader elections.
+	nonVoter bool
 
 	effectiveSDKVersion string
 }
@@ -473,6 +481,19 @@ func NewRaftBackend(conf map[string]string, logger log.Logger) (physical.Backend
 		}
 	}
 
+	var nonVoter bool
+	if v, ok := os.LookupEnv(EnvVaultRaftNonVoter); ok {
+		nonVoter, err = strconv.ParseBool(v)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse %s value %q as a boolean: %w", EnvVaultRaftNonVoter, v, err)
+		}
+	} else if v, ok := conf[raftNonVoterConfigKey]; ok {
+		nonVoter, err = strconv.ParseBool(v)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse %s value %q as a boolean: %w", raftNonVoterConfigKey, v, err)
+		}
+	}
+
 	return &RaftBackend{
 		logger:                     logger,
 		fsm:                        fsm,
@@ -489,6 +510,7 @@ func NewRaftBackend(conf map[string]string, logger log.Logger) (physical.Backend
 		autopilotReconcileInterval: reconcileInterval,
 		autopilotUpdateInterval:    updateInterval,
 		redundancyZone:             conf["autopilot_redundancy_zone"],
+		nonVoter:                   nonVoter,
 		upgradeVersion:             upgradeVersion,
 	}, nil
 }
@@ -552,6 +574,13 @@ func (b *RaftBackend) RedundancyZone() string {
 	defer b.l.RUnlock()
 
 	return b.redundancyZone
+}
+
+func (b *RaftBackend) NonVoter() bool {
+	b.l.RLock()
+	defer b.l.RUnlock()
+
+	return b.nonVoter
 }
 
 func (b *RaftBackend) EffectiveVersion() string {
