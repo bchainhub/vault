@@ -48,6 +48,20 @@ func TestBackend_Config(t *testing.T) {
 		t.Fatalf("Unable to create backend: %s", err)
 	}
 
+	// Check to ensure each cred is populated with something
+	credNames := [4]string{
+		"OKTA_USERNAME",
+		"OKTA_PASSWORD",
+		"OKTA_API_TOKEN",
+		"OKTA_ORG",
+	}
+
+	for _, i := range credNames {
+		if os.Getenv(i) == "" {
+			t.Skipf("%s must be set for acceptance tests", i)
+		}
+	}
+
 	username := os.Getenv("OKTA_USERNAME")
 	password := os.Getenv("OKTA_PASSWORD")
 	token := os.Getenv("OKTA_API_TOKEN")
